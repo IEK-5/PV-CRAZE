@@ -1,0 +1,119 @@
+m4_define([pvcraze_major_version],    [0])
+m4_define([pvcraze_minor_version],    [1])
+m4_define([pvcraze_revis_version],    [0])
+m4_define([pvcraze_version],[pvcraze_major_version.pvcraze_minor_version.pvcraze_revis_version])
+AC_INIT([pvcraze], [pvcraze_version])
+AM_INIT_AUTOMAKE
+
+AC_PROG_CXX
+AC_PROG_CC
+
+AC_CONFIG_SRCDIR([octave-pv-craze.cc])
+AC_CONFIG_HEADERS([config.h])
+
+AC_CHECK_LIB(m,main)
+AC_CHECK_LIB(gslcblas,main)
+AC_CHECK_LIB(gsl,main)
+AC_CHECK_LIB(pvcraze,pv_craze_analyze, [],
+[
+  AC_MSG_ERROR([Could  not find pvcraze library])
+])
+
+# did not manage to import m4 scripts in the octave build process, so here goes
+# get blas
+blas_ok=no
+# Get fortran linker names of BLAS functions to check for.
+AC_F77_FUNC(sgemm)
+AC_F77_FUNC(dgemm)
+
+# First, check BLAS_LIBS environment variable
+if test $blas_ok = no; then
+if test "x$BLAS_LIBS" != x; then
+	save_LIBS="$LIBS"; LIBS="$BLAS_LIBS $LIBS"
+	AC_MSG_CHECKING([for $sgemm in $BLAS_LIBS])
+	AC_TRY_LINK_FUNC($sgemm, [blas_ok=yes], [BLAS_LIBS=""])
+	AC_MSG_RESULT($blas_ok)
+	LIBS="$save_LIBS"
+fi
+fi
+
+# BLAS in OpenBLAS library? (http://xianyi.github.com/OpenBLAS/)
+if test $blas_ok = no; then
+	AC_CHECK_LIB(openblas, $sgemm, [blas_ok=yes
+			                BLAS_LIBS="-lopenblas"])
+fi
+
+# BLAS in ATLAS library? (http://math-atlas.sourceforge.net/)
+if test $blas_ok = no; then
+	AC_CHECK_LIB(atlas, ATL_xerbla,
+		[AC_CHECK_LIB(f77blas, $sgemm,
+		[AC_CHECK_LIB(cblas, cblas_dgemm,
+			[blas_ok=yes
+			 BLAS_LIBS="-lcblas -lf77blas -latlas"],
+			[], [-lf77blas -latlas])],
+			[], [-latlas])])
+fi
+
+# BLAS in PhiPACK libraries? (requires generic BLAS lib, too)
+if test $blas_ok = no; then
+	AC_CHECK_LIB(blas, $sgemm,
+		[AC_CHECK_LIB(dgemm, $dgemm,
+		[AC_CHECK_LIB(sgemm, $sgemm,
+			[blas_ok=yes; BLAS_LIBS="-lsgemm -ldgemm -lblas"],
+			[], [-lblas])],
+			[], [-lblas])])
+fi
+if test $blas_ok = no; then
+	AC_CHECK_LIB(blas, $sgemm, [blas_ok=yes; BLAS_LIBS="-lblas"])
+fi
+
+AC_SUBST(BLAS_LIBS)
+
+# now check for lapack:
+lapack_ok=no
+# Get fortran linker name of LAPACK function to check for.
+AC_F77_FUNC(cheev)
+# We cannot use LAPACK if BLAS is not found
+if test "x$blas_ok" != xyes; then
+        lapack_ok=noblas
+        LAPACK_LIBS=""
+fi
+
+# First, check LAPACK_LIBS environment variable
+if test "x$LAPACK_LIBS" != x; then
+        save_LIBS="$LIBS"; LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS"
+        AC_MSG_CHECKING([for $cheev in $LAPACK_LIBS])
+        AC_TRY_LINK_FUNC($cheev, [lapack_ok=yes], [LAPACK_LIBS=""])
+        AC_MSG_RESULT($lapack_ok)
+        LIBS="$save_LIBS"
+        if test $lapack_ok = no; then
+                LAPACK_LIBS=""
+        fi
+fi
+
+# LAPACK linked to by default?  (is sometimes included in BLAS lib)
+if test $lapack_ok = no; then
+        save_LIBS="$LIBS"; LIBS="$LIBS $BLAS_LIBS $FLIBS"
+        AC_CHECK_FUNC($cheev, [lapack_ok=yes])
+        LIBS="$save_LIBS"
+fi
+
+# Generic LAPACK library?
+for lapack in lapack lapack_rs6k; do
+        if test $lapack_ok = no; then
+                save_LIBS="$LIBS"; LIBS="$BLAS_LIBS $LIBS"
+                AC_CHECK_LIB($lapack, $cheev,
+                    [lapack_ok=yes; LAPACK_LIBS="-l$lapack"], [], [$FLIBS])
+                LIBS="$save_LIBS"
+        fi
+done
+
+AC_SUBST(LAPACK_LIBS)
+
+LIBS="$LAPACK_LIBS $BLAS_LIBS $FLIBS $LIBS"
+
+AC_PATH_PROG([MKOCTFILE],   [mkoctfile],   [:])
+AC_PATH_PROG([OCTAVE],      [octave],      [:])
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT

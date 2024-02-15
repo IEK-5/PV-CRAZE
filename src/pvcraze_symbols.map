@@ -1,0 +1,9 @@
+VERS_1.1 {
+	global:
+		pv_craze_*;
+		pv_creator;
+		pv_cure;
+		pv_cult;
+	local:
+		*;
+};

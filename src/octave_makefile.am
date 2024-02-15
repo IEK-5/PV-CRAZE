@@ -1,0 +1,11 @@
+
+AUTOMAKE_OPTIONS = foreign no-exeext
+AM_CFLAGS = -fPIC
+ACLOCAL_AMFLAGS = -I m4
+
+bin_PROGRAMS = pv_craze.oct
+pv_craze_oct_SOURCES = octave-pv-craze.cc 
+
+
+pv_craze.oct$(EXEEXT): $(pv_craze_oct_SOURCES)
+	mkoctfile -v octave-pv-craze.cc -o pv_craze.oct $(LDFLAGS) $(LIBS)

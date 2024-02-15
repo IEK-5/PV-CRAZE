@@ -1,0 +1,27 @@
+VERSION=version
+CFLAGS=-fPIC cflags
+SRCDIR=srcdir
+# header and source files. Note: you need to first install the pv-craze library
+SRC=$(SRCDIR)/octave-pv-craze.cc 
+HDR=$(SRCDIR)/curve.h $(SRCDIR)/lib-pv-craze.h $(SRCDIR)/lib-pv-craze-structs.h
+OCTFILES=pv_craze.oct
+
+pv-craze.pkg: $(SRC) $(HRD)
+	mkdir -p pv-craze-$(VERSION)/src
+	mkdir -p pv-craze-$(VERSION)/inst
+	cp $(SRC) $(HDR) pv-craze-$(VERSION)/src/
+	cp $(SRCDIR)/octave_configure.ac pv-craze-$(VERSION)/src/configure.ac
+	cp $(SRCDIR)/octave_makefile.am pv-craze-$(VERSION)/src/Makefile.am
+	echo "Name: pv-craze" > pv-craze-$(VERSION)/DESCRIPTION
+	echo "Version: $(VERSION)" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "Date: $(shell date)" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "Author: B.E.Pieters" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "Maintainer: B.E.Pieters" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "Categories: Photo-Voltaics, Curve Fitting" >>  pv-craze-$(VERSION)/DESCRIPTION
+	echo "Title: pv-craze" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "Description: Determine Extended Solar Cell Paremeters and fit curve models to PV Current Voltage Characteristics" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "License: GPLv3+" >> pv-craze-$(VERSION)/DESCRIPTION
+	echo "The GPLv3+ applies to all files in thic package" > pv-craze-$(VERSION)/COPYING
+	cd pv-craze-$(VERSION)/src/;export AUTOMAKE="automake --foreign -a";autoreconf -f -i
+	tar -zcvf octave-pv-craze.tar.gz pv-craze-$(VERSION)
+	rm -rf  pv-craze-$(VERSION)

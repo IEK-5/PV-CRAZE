@@ -1,0 +1,8 @@
+Python Interface Description:
+
+
+[dict]=pvcraze.analyze([IV-list] | ,[model-list], v_report, v_head, v_progress, v_timing) % some optional arguments missing
+- Extracts epars, flags curves, and optionally fits models and computes errors.
+[IV-list-list]=pvcraze.curvemodel([model-parameters list], Niv)
+[model-parameters list]=pvcraze.modelfit(epars, [model-list])
+[model-id]=lookupmodel([model-name])

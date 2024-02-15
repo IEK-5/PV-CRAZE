@@ -1,0 +1,53 @@
+from distutils.core import setup, Extension
+from distutils.sysconfig import get_python_inc
+from distutils.log import set_verbosity
+import numpy
+import os
+set_verbosity(1)
+
+CLASSIFIERS = [
+    "Development Status :: 1 - Experimental",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: C",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: Implementation",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+KEYWORDS = "Photo-Voltaics solar-cell-parameters IV model"
+PACKAGE_NAME = "pvcraze"
+
+
+S='__sources__'
+ext = Extension(
+    PACKAGE_NAME,
+    include_dirs=['.',os.path.join(numpy.get_include(), 'numpy'),get_python_inc()],
+    sources=str.split(S),
+    libraries= ['pvcraze','gsl', 'gslcblas', 'lapack', 'openblas','m' ],
+    define_macros=[('VERSION', '1')]
+)
+try:
+    setup(
+        author="B. E. Pieters",
+        author_email="B.Pieters@fz-juelich.de",
+        classifiers=CLASSIFIERS,
+        description="Photo-Voltaic CuRve AnalyZEr (PV-CRAZE)",
+        ext_modules=[ext],
+        keywords=KEYWORDS,
+        name=PACKAGE_NAME,
+        version="__version__",
+    )
+except SystemExit:
+    print(
+        "\nIt seems the installation didn't end well.\n"
+        "sorry about that\n"
+    )

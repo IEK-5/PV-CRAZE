@@ -1,0 +1,32 @@
+VERSION=0.1
+SRC=curve.c fitmodels.c io.c Error.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c bezier_iv.c bezier2_iv.c bezier3_iv.c neldermead.c diffevol.c lib-pv-craze.c tictoc.c
+OBJ=curve.o fitmodels.o io.o Error.o curvemodel.o spline_iv.o splinefit.o KH_iv.o PC_iv.o diode_iv.o bezier_iv.o bezier2_iv.o bezier3_iv.o neldermead.o diffevol.o tictoc.o
+HDR=curve.h fitmodels.h io.h Error.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h bezier_iv.h bezier2_iv.h bezier3_iv.h neldermead.h diffevol.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h
+CC=gcc
+# Do not set -ffinite-math-only, it may trip segfaults
+# CFLAGS=-fPIC -Wall -pedantic -g -lgsl
+CFLAGS=-fPIC -Ofast -flto -fno-finite-math-only
+LFLAGS=-lgsl -lm -llapack -lopenblas
+
+all: pv-craze pv-creator lib pv-craze.pkg
+lib: lib-pv-craze.o
+pv-craze: Makefile lib-pv-craze.o pv-craze.c
+	$(CC) -o pv-craze -DVERSION=\"$(VERSION)\" $(CFLAGS) pv-craze.c lib-pv-craze.o $(OBJ) $(LFLAGS)
+lib-pv-craze.o: Makefile $(SRC) $(HDR) $(OBJ) models.h model_table.h ivanalyzeflags.h
+	$(CC) $(CFLAGS) -c -DVERSION=\"$(VERSION)\" lib-pv-craze.c
+pv-creator: pv-creator.c Makefile lib-pv-craze.o 
+	$(CC) -o pv-creator -DVERSION=\"$(VERSION)\" $(CFLAGS) lib-pv-craze.o $(OBJ) $(LFLAGS) pv-creator.c
+fitmodels.o: models.h model_table.h fitmodels.c
+	$(CC) $(CFLAGS) -c fitmodels.c
+curve.o: ivanalyzemessages.h ivanalyzeflags.h curve.c curve.h
+spline_iv.o: splinefit.h
+models.h model_table.h: $(HDR) register_models.sh
+	${SHELL} register_models.sh  . $(HDR)
+ivanalyzemessages.h ivanalyzeflags.h: curve.c gen_ivanalyzeflags.sh
+	${SHELL} gen_ivanalyzeflags.sh  . curve.c
+Makefile_octave: Makefile_octave.in ivanalyzemessages.h ivanalyzeflags.h models.h model_table.h
+	sed 's|version|'$(VERSION)'|g' Makefile_octave.in > Makefile_octave
+pv-craze.pkg: Makefile_octave
+	make -f Makefile_octave
+clean:
+	rm *.o models.h model_table.h pv-craze pv-creator

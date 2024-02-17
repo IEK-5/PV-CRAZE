@@ -1,7 +1,7 @@
 
 /*
     one diode IV model.
-    Copyright (C) 2021  B. E. Pieters, 
+    Copyright (C) 2024  B. E. Pieters, 
     IEK-5 Photovoltaik, Forschunszentrum Juelich
 */
 /*****************************************************************              
@@ -21,7 +21,7 @@
  *   http://www.fz-juelich.de/iek/iek-5/DE/Home/home_node.html   *              
  *****************************************************************
  *                                                               *
- *    Dr. Bart E. Pieters 2021                                   *
+ *    Dr. Bart E. Pieters 2024                                   *
  *                                                               *             
  *****************************************************************/ 
 
@@ -54,4 +54,11 @@ generic_pars 	DiodeFitGqmp(curvepars par, curve C, double *Efit, MODELSET *S);
 // generic_pars 	DiodeFitDE(curvepars par, curve C, double *Efit);
 curvepars 		DiodePars(generic_pars P, MODELSET *S);
 
-
+// Diode model G-T translation
+generic_pars DiodeGTFit(curvepars *C, double *G, double *T, int N, 
+                        double *alpha, double *Ea, double *T0, 
+                        double *G0, MODELSET *S);
+                        
+generic_pars DiodeGTTranslate(generic_pars P0, double alpha, double Ea, 
+                        double G, double T, double G0, double T0, 
+                        MODELSET *S);

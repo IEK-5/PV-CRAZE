@@ -1,6 +1,6 @@
 /*
     Cubic Spline IV model.
-    Copyright (C) 2021  B. E. Pieters, 
+    Copyright (C) 2024  B. E. Pieters, 
     IEK-5 Photovoltaik, Forschunszentrum Juelich
 */
 /*****************************************************************              
@@ -20,7 +20,7 @@
  *   http://www.fz-juelich.de/iek/iek-5/DE/Home/home_node.html   *              
  *****************************************************************
  *                                                               *
- *    Dr. Bart E. Pieters 2021                                   *
+ *    Dr. Bart E. Pieters 2024                                   *
  *                                                               *             
  *****************************************************************/ 
 

@@ -64,6 +64,8 @@ typedef enum {IFILTER,SFILTER, MPPMETHOD, MPPDV, MPPDI, SCDV, OCDI, MODEL, RESAM
 // PKG_ADD: autoload("pvcraze_fit_IEC60891_v3","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_IEC60891_v2","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_IEC60891_v3","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_fit_diode_GT","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_translate_diode_GT","pv_craze.oct");
 
 
 DEFUN_DLD (pvcraze_quiet, args, nargout, "-*- texinfo -*-\n\
@@ -1705,4 +1707,319 @@ Output:\n\
 }
 
 
+DEFUN_DLD (pvcraze_fit_diode_GT, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{modelpar_std}, alpha, Ea] =} pvcraze_fit_diode_GT (@var{esp}, T, G, Tstd, Gstd [,unit])\n\
+pvcraze_fit_diode_GT is part of the PV-CRAZE package and fits a diode model \
+to temperature and irradiance dependent extended solar cell parameters \
+It returns diode model parameters at some specified standard temperatre \
+and irradiance conditions. Furthermore, it returns two coefficients, alpha, \
+the temperature coefficient of the short circuit current, and Ea, the \
+activation energy of the saturation current.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
+@item @var{T}: Array with temperatures, one temperature per row in esp\n\
+@item @var{G}: Array with irradiances, one irradiance per row in esp\n\
+@item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
+@item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
+@item @var{unit}: Temperature unit (\"C\"/\"Celcius\" or \"K\"/\"Kelvin\")\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{modelpar_std}: Diode parameters at standard test conditions\n\
+@item @var{alpha}:     Temperature coefficient of the photo-current.\n\
+@item @var{Ea}:        Activation energy of the saturation current\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	curvepars *Cin;
+	generic_pars Pstd;
+	Matrix T,G,Pin;
+	RowVector Pout;
+	double *TT, *GG;
+	double alpha, Ea, Tstd, Gstd;
+	int N, Nr,Nc;
+	int i;
+	char unit ='K';
+  	if ((nargin != 5)&&(nargin !=6))
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	
+	Pin=args(0).matrix_value();
+	T=args(1).matrix_value();
+	G=args(2).matrix_value();
+	Tstd=args(3).double_value();
+	Gstd=args(4).double_value();
+  	if (nargin==6)
+  	{
+		std::string Aunit;
+		Aunit=args(5).string_value();
+		int cc=0;
+		cc+=(strncmp("C",		(char *) Aunit.c_str(), 10)==0);
+		cc+=(strncmp("Celcius",	(char *) Aunit.c_str(), 10)==0);
+		if (cc)
+			unit='C';
+		else 
+		{
+			cc+=(strncmp("K",		(char *) Aunit.c_str(), 10)==0);
+			cc+=(strncmp("Kelvin",	(char *) Aunit.c_str(), 10)==0);
+			if (!cc)
+			{
+				fprintf(stderr, "Unknown temperature unit \"%s\"\n", (char *) Aunit.c_str());
+				fprintf(stderr, "Using default unit Kelvin\n");
+			}
+		}
+	}
+				
+			
+	
+	Nr=Pin.rows();
+	Nc=Pin.cols();
+	if ((Nr<3)||(Nc!=10))
+	{
+		fprintf(stderr, "Number of rows in esp may not less than 3\n");
+		fprintf(stderr, "and number of columns must be 10\n");
+		return octave_value_list ();
+	}
+	N=T.rows();
+	Nc=T.cols();
+	if ((N!=Nr)||(Nc!=1))
+	{
+		fprintf(stderr, "Number of rows in T must be equal to rows in esp\n");
+		fprintf(stderr, "and number of columns must be 1\n");
+		return octave_value_list ();
+	}
+	N=G.rows();
+	Nc=G.cols();
+	if ((N!=Nr)||(Nc!=1))
+	{
+		fprintf(stderr, "Number of rows in G must be equal to rows in esp\n");
+		fprintf(stderr, "and number of columns must be 1\n");
+		return octave_value_list ();
+	}
+	
+	
+	// create a list of esp	
+	if ((Cin=(curvepars *)malloc(N*sizeof(curvepars)))==NULL)
+	{
+		fprintf(stderr, "Memory allocation failed\n");
+		return octave_value_list ();
+	}
+	if ((TT=(double *)malloc(N*sizeof(double)))==NULL)
+	{
+		free(Cin);
+		fprintf(stderr, "Memory allocation failed\n");
+		return octave_value_list ();
+	}
+	if ((GG=(double *)malloc(N*sizeof(double)))==NULL)
+	{
+		free(Cin);
+		free(TT);
+		fprintf(stderr, "Memory allocation failed\n");
+		return octave_value_list ();
+	}
+	
+	for (i=0;i<N;i++)
+	{
+		Cin[i].Voc=Pin(i,0);
+		Cin[i].Isc=Pin(i,1);
+		Cin[i].Vmpp=Pin(i,2);
+		Cin[i].Impp=Pin(i,3);
+		Cin[i].Vqmp1=Pin(i,4);
+		Cin[i].Iqmp1=Pin(i,5);
+		Cin[i].Vqmp2=Pin(i,6);
+		Cin[i].Iqmp2=Pin(i,7);
+		Cin[i].Gsc=Pin(i,8);
+		Cin[i].Roc=Pin(i,9);	
+		TT[i]=T(i,0);	
+		GG[i]=G(i,0);	
+	}
+	
+	Pstd=pv_craze_fit_diode_GT(Cin, GG,TT, N, &alpha, &Ea,Tstd,Gstd, unit);
+	
+	free(GG);
+	free(TT);
+	free(Cin);
+	
+	Pout=RowVector(11);
+	Pout(0) =(double)Pstd.TYPE;
+	Pout(1) =Pstd.pars[0];
+	Pout(2) =Pstd.pars[1];
+	Pout(3) =Pstd.pars[2];
+	Pout(4) =Pstd.pars[3];
+	Pout(5) =Pstd.pars[4];
+	Pout(6) =Pstd.pars[5];
+	Pout(7) =Pstd.pars[6];
+	Pout(8) =Pstd.pars[7];
+	Pout(9) =Pstd.pars[8];	
+	Pout(10)=Pstd.pars[9];	
+
+
+	i=0;
+	if (nargout>i)
+		retval(i++)=octave_value(Pout);
+	if (nargout>i)
+		retval(i++)=octave_value(alpha);
+	if (nargout>i) 
+		retval(i++)=octave_value(Ea);
+	return retval;	
+}
+
+
+DEFUN_DLD (pvcraze_translate_diode_GT, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{modelpar}] =} pvcraze_translate_diode_GT (@var{modelpar_std}, Tstd, Gstd, T, G, alpha, Ea [, unit])\n\
+pvcraze_translate_diode_GT is part of the PV-CRAZE package and translates \
+diode model parameters from Tstd,Gstd to T,G, using the temperature \
+coeefficient alpha and the activation energy Ea.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{modelpar_std}: model parameters at Tstd,Gstd\n\
+@item @var{Tstd}: Standard tempersture\n\
+@item @var{Gstd}: Standard irradiance\n\
+@item @var{T}: Array with output temperatures\n\
+@item @var{G}: Array with output irradiances\n\
+@item @var{alpha}:  temperature coefficient of the photocurrent\n\
+@item @var{Ea}:     activation energy of the saturation current\n\
+@item @var{unit}:   Temperature unit (\"C\"/\"Celcius\" or \"K\"/\"Kelvin\")\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{modelpar}: Array with translated model parameters, one per G,T pair\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	generic_pars P;
+	generic_pars *Pt;
+	Matrix T,G,Pin,Pout;
+	double *TT, *GG;
+	double alpha, Ea, Gstd, Tstd;
+	int N, Nr,Nc;
+	int i;
+	char unit ='K';
+  	if ((nargin != 7)&&(nargin != 8))
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	
+	Pin=args(0).matrix_value();
+	Tstd=args(1).double_value();
+	Gstd=args(2).double_value();	
+	T=args(3).matrix_value();
+	G=args(4).matrix_value();
+	alpha=args(5).double_value();
+	Ea=args(6).double_value();
+	
+  	if (nargin==8)
+  	{
+		std::string Aunit;
+		Aunit=args(7).string_value();
+		int cc=0;
+		cc+=(strncmp("C",		(char *) Aunit.c_str(), 10)==0);
+		cc+=(strncmp("Celcius",	(char *) Aunit.c_str(), 10)==0);
+		if (cc)
+			unit='C';
+		else 
+		{
+			cc+=(strncmp("K",		(char *) Aunit.c_str(), 10)==0);
+			cc+=(strncmp("Kelvin",	(char *) Aunit.c_str(), 10)==0);
+			if (!cc)
+			{
+				fprintf(stderr, "Unknown temperature unit \"%s\"\n", (char *) Aunit.c_str());
+				fprintf(stderr, "Using default unit Kelvin\n");
+			}
+		}
+	}
+	Nr=Pin.rows();
+	Nc=Pin.cols();
+	if ((Nr!=1)||(Nc!=11))
+	{
+		fprintf(stderr, "Number of rows in modelpar_std must be 1\n");
+		fprintf(stderr, "and number of columns must be 11\n");
+		return octave_value_list ();
+	}
+	N=T.rows();
+	Nc=T.cols();
+	if (Nc!=1)
+	{
+		fprintf(stderr, "Number of columns in T must be 1\n");
+		return octave_value_list ();
+	}
+	Nr=G.rows();
+	Nc=G.cols();
+	if ((N!=Nr)||(Nc!=1))
+	{
+		fprintf(stderr, "Number of rows in G must be equal to rows in T\n");
+		fprintf(stderr, "and number of columns must be 1\n");
+		return octave_value_list ();
+	}
+	
+	P.TYPE =(MODEL_TYPE)Pin(0);
+	P.pars[0] = Pin(1);
+	P.pars[1] = Pin(2);
+	P.pars[2] = Pin(3);
+	P.pars[3] = Pin(4);
+	P.pars[4] = Pin(5);
+	P.pars[5] = Pin(6);
+	P.pars[6] = Pin(7);
+	P.pars[7] = Pin(8);
+	P.pars[8] = Pin(9);
+	P.pars[9] = Pin(10);
+	
+	
+	
+	if ((TT=(double *)malloc(N*sizeof(double)))==NULL)
+	{
+		fprintf(stderr, "Memory allocation failed\n");
+		return octave_value_list ();
+	}
+	if ((GG=(double *)malloc(N*sizeof(double)))==NULL)
+	{
+		free(TT);
+		fprintf(stderr, "Memory allocation failed\n");
+		return octave_value_list ();
+	}
+	
+	for (i=0;i<N;i++)
+	{
+		TT[i]=T(i,0);	
+		GG[i]=G(i,0);			
+	}
+	Pt=pv_craze_translate_diode_GT(P,Gstd,Tstd, GG, TT, N, alpha, Ea, unit);
+	free(GG);
+	free(TT);
+	
+	if (!Pt)
+	{
+		fprintf(stderr, "PV-CRAZE returned a NULL list\n");
+		return octave_value_list ();		
+	}
+	
+	Pout=Matrix(N,11);
+	for (i=0;i<N;i++)
+	{
+		Pout(i,0) =(double)Pt[i].TYPE;
+		Pout(i,1) =Pt[i].pars[0];
+		Pout(i,2) =Pt[i].pars[1];
+		Pout(i,3) =Pt[i].pars[2];
+		Pout(i,4) =Pt[i].pars[3];
+		Pout(i,5) =Pt[i].pars[4];
+		Pout(i,6) =Pt[i].pars[5];
+		Pout(i,7) =Pt[i].pars[6];
+		Pout(i,8) =Pt[i].pars[7];
+		Pout(i,9) =Pt[i].pars[8];	
+		Pout(i,10)=Pt[i].pars[9];	
+	}	
+	free(Pt);	
+
+	retval(0)=octave_value(Pout);
+	return retval;	
+	
+}
 

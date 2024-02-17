@@ -137,9 +137,10 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(pkgdatadir)" \
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libpvcraze_la_LIBADD =
 am_libpvcraze_la_OBJECTS = emalloc.lo curve.lo fitmodels.lo Error.lo \
-	curvemodel.lo spline_iv.lo splinefit.lo KH_iv.lo PC_iv.lo \
-	diode_iv.lo bezier2_iv.lo bezier3_iv.lo pwl_iv.lo apwl_iv.lo \
-	neldermead.lo diffevol.lo lib-pv-craze.lo tictoc.lo
+	quickselect.lo curvemodel.lo spline_iv.lo splinefit.lo \
+	KH_iv.lo PC_iv.lo diode_iv.lo bezier2_iv.lo bezier3_iv.lo \
+	pwl_iv.lo apwl_iv.lo neldermead.lo diffevol.lo \
+	furthestsampling.lo lib-pv-craze.lo tictoc.lo
 libpvcraze_la_OBJECTS = $(am_libpvcraze_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -169,8 +170,9 @@ am__depfiles_remade = ./$(DEPDIR)/Error.Plo ./$(DEPDIR)/KH_iv.Plo \
 	./$(DEPDIR)/curve.Plo ./$(DEPDIR)/curvemodel.Plo \
 	./$(DEPDIR)/diffevol.Plo ./$(DEPDIR)/diode_iv.Plo \
 	./$(DEPDIR)/emalloc.Plo ./$(DEPDIR)/fitmodels.Plo \
-	./$(DEPDIR)/lib-pv-craze.Plo ./$(DEPDIR)/neldermead.Plo \
-	./$(DEPDIR)/pwl_iv.Plo ./$(DEPDIR)/spline_iv.Plo \
+	./$(DEPDIR)/furthestsampling.Plo ./$(DEPDIR)/lib-pv-craze.Plo \
+	./$(DEPDIR)/neldermead.Plo ./$(DEPDIR)/pwl_iv.Plo \
+	./$(DEPDIR)/quickselect.Plo ./$(DEPDIR)/spline_iv.Plo \
 	./$(DEPDIR)/splinefit.Plo ./$(DEPDIR)/tictoc.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -350,7 +352,7 @@ top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = -Wall
 lib_LTLIBRARIES = libpvcraze.la
-libpvcraze_la_SOURCES = emalloc.c curve.c fitmodels.c Error.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h io.h Error.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
+libpvcraze_la_SOURCES = emalloc.c curve.c fitmodels.c Error.c quickselect.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c furthestsampling.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h io.h Error.h quickselect.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h furthestsampling.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
 libpvcraze_la_LDFLAGS = -lm -Wl,--version-script=${srcdir}/libpvcraze.map -no-undefined  -version-number $(LIBVERSION)
 include_HEADERS = pvcraze.h
 BUILT_SOURCES = models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h Makefile_octave MANIFEST.in setup.py
@@ -464,9 +466,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/diode_iv.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/emalloc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fitmodels.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/furthestsampling.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lib-pv-craze.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/neldermead.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pwl_iv.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/quickselect.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spline_iv.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/splinefit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tictoc.Plo@am__quote@ # am--include-marker
@@ -690,9 +694,11 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/diode_iv.Plo
 	-rm -f ./$(DEPDIR)/emalloc.Plo
 	-rm -f ./$(DEPDIR)/fitmodels.Plo
+	-rm -f ./$(DEPDIR)/furthestsampling.Plo
 	-rm -f ./$(DEPDIR)/lib-pv-craze.Plo
 	-rm -f ./$(DEPDIR)/neldermead.Plo
 	-rm -f ./$(DEPDIR)/pwl_iv.Plo
+	-rm -f ./$(DEPDIR)/quickselect.Plo
 	-rm -f ./$(DEPDIR)/spline_iv.Plo
 	-rm -f ./$(DEPDIR)/splinefit.Plo
 	-rm -f ./$(DEPDIR)/tictoc.Plo
@@ -753,9 +759,11 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/diode_iv.Plo
 	-rm -f ./$(DEPDIR)/emalloc.Plo
 	-rm -f ./$(DEPDIR)/fitmodels.Plo
+	-rm -f ./$(DEPDIR)/furthestsampling.Plo
 	-rm -f ./$(DEPDIR)/lib-pv-craze.Plo
 	-rm -f ./$(DEPDIR)/neldermead.Plo
 	-rm -f ./$(DEPDIR)/pwl_iv.Plo
+	-rm -f ./$(DEPDIR)/quickselect.Plo
 	-rm -f ./$(DEPDIR)/spline_iv.Plo
 	-rm -f ./$(DEPDIR)/splinefit.Plo
 	-rm -f ./$(DEPDIR)/tictoc.Plo

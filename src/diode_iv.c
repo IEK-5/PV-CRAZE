@@ -43,6 +43,7 @@
 #include "curvemodel.h"
 #include "neldermead.h"
 #include "diffevol.h"
+#include "quickselect.h"
 
 typedef struct {
 	double I0,nkT,Iph,Rs, Rsh, Voc, Isc;
@@ -1147,3 +1148,310 @@ generic_pars DiodeFitGqmp(curvepars par, curve C, double *Efit, MODELSET *S)
 	return Diode2GenericPars(P);
 }
 
+/* fitting routines to get a full temperature and irradiance dependent 
+ * diode model
+ */
+ 
+/* from a dataset (esp vs T and G), determine the median diode properties
+ * and conditions
+ */
+void MedianDiode(curvepars *P, double *G, double *T, int N, 
+                        MODELSET *S, double *I0, double *NnkT0, 
+                        double *Iph0, double *Rs0, double *Rsh0, 
+                        double *G0, double *T0)
+{
+	double err;
+	int i;
+	double *I0d, *NnkTd, *Iphd, *Rsd, *Rshd;
+	generic_pars gp;
+	double *GG, *TT;
+	curve C;
+	
+	(*I0)=-1;
+	(*NnkT0)=-1;
+	(*Iph0)=-1;
+	(*Rs0)=-1;
+	(*Rsh0)=-1;	
+	
+	// base parameters are all median values
+	// copy G and T arrays to compute median
+	if((GG=Emalloc(N*sizeof(double)))==NULL)
+		return;
+	if((TT=Emalloc(N*sizeof(double)))==NULL)
+	{
+		free(GG);
+		return;
+	}
+	for (i=0;i<N;i++)
+	{
+		GG[i]=G[i];
+		TT[i]=T[i];
+	}	
+	(*G0)=quick_median(GG,N);
+	(*T0)=quick_median(TT,N);
+	free(GG);
+	free(TT);
+	
+	
+	if((I0d=Emalloc(N*sizeof(double)))==NULL)
+		return;
+	if((NnkTd=Emalloc(N*sizeof(double)))==NULL)
+	{
+		free(I0d);
+		return;
+	}
+	if((Iphd=Emalloc(N*sizeof(double)))==NULL)
+	{
+		free(I0d);
+		free(NnkTd);
+		return;
+	}
+	if((Rsd=Emalloc(N*sizeof(double)))==NULL)
+	{
+		free(I0d);
+		free(NnkTd);
+		free(Iphd);
+		return;
+	}
+	if((Rshd=Emalloc(N*sizeof(double)))==NULL)
+	{
+		free(I0d);
+		free(NnkTd);
+		free(Iphd);
+		free(Rsd);
+		return;
+	}
+	C.N=5;
+	if((C.P=Emalloc(C.N*sizeof(point)))==NULL)
+	{
+		free(I0d);
+		free(NnkTd);
+		free(Iphd);
+		free(Rsd);
+		free(Rshd);
+		return;
+	}
+	C.P[0].x=0.0;
+	C.P[4].y=0.0;
+	
+	for (i=0;i<N;i++)
+	{
+		C.P[0].y=P[i].Isc;
+		C.P[1].x=P[i].Vqmp1;
+		C.P[1].y=P[i].Iqmp1;
+		C.P[2].x=P[i].Vmpp;
+		C.P[2].y=P[i].Impp;
+		C.P[3].x=P[i].Vqmp2;
+		C.P[3].y=P[i].Iqmp2;
+		C.P[4].x=P[i].Voc;
+			
+		gp=DiodeFit(P[i], C, &err, S);
+		I0d[i]   = gp.pars[0];
+		NnkTd[i] = gp.pars[1];
+		Iphd[i]  = gp.pars[2];
+		Rsd[i]   = gp.pars[3];
+		Rshd[i]  = gp.pars[4];
+	}	
+	(*I0)=quick_median(I0d,N);
+	(*NnkT0)=quick_median(NnkTd,N);
+	(*Iph0)=quick_median(Iphd,N);
+	(*Rs0)=quick_median(Rsd,N);
+	(*Rsh0)=quick_median(Rshd,N);
+	free(I0d);
+	free(Iphd);
+	free(NnkTd);
+	free(Rsd);
+	free(Rshd);
+	free(C.P);
+}
+
+/* the optimization parameter set:
+ * [Vx,Nnk,alpha,Rs,Rsh,Ea]
+ * Voc0  = Voc at G0,T0 (better parameter to optimize than I0)
+ * Iph0  = Iph at G0, T0 
+ * NnkT0 = thermal voltage prefactor at T0
+ * alpha = temp coeff Isc
+ * Rs    = series resistance
+ * Gsh   = shunt conductance (better parameter to optimize than Rsh)
+ * Ea    = activation energy (Eg/n) 
+ */
+double XtoDiodepars(double x[7],double G0,double T0, diodepars *P, MODELSET *S);
+diodepars DiodeParsTranslate(double alpha, double Ea, double I00, double G0, double T0, double G, double T, diodepars *P, MODELSET *S);
+
+void InitParameters(curvepars *P, double *G, double *T, int N, 
+                    MODELSET *S, double x[7], double *T0, double *G0)
+{
+	double I0, NnkT0, Iph0, Rs0, Rsh0, Voc0;
+	double Ea=1.12, alpha=5e-3; // rough values should be OK
+	MedianDiode(P,G,T,N,S,&I0,&NnkT0,&Iph0,&Rs0,&Rsh0,G0,T0);
+	
+	if (I0<0)
+	{
+		x[0]=-1;
+		x[1]=-1;
+		x[2]=-1;
+		x[3]=-1;
+		x[4]=-1;
+		x[5]=-1;
+		x[6]=-1;
+		return;
+	}
+	Voc0=NnkT0*log(Iph0/I0+1.0); // we could directly take the median of the Voc but I suppose it does not matter
+	x[0]=Voc0;
+	x[1]=Iph0;
+	x[2]=NnkT0;
+	x[3]=Rs0;
+	x[4]=1/Rsh0;
+	x[5]=alpha;
+	x[6]=Ea;
+}
+#define K_B 8.6173899875662609e-05
+double XtoDiodepars(double x[7],double G0,double T0, diodepars *P, MODELSET *S)
+{
+	double I00;
+	
+	P->Iph=x[1];
+	
+	I00=x[1]/(exp(x[0]/x[2])-1);
+	P->I0=I00;
+	
+	P->nkT=x[2];
+	P->Rs=x[3];
+	P->Rsh=1/x[4]; 
+	
+	// solve the special points
+	P->Isc=Diode_I(0, NULL, *P, S);
+	P->Voc=SolveVoc(*P, S);
+	return I00;
+}
+
+diodepars DiodeParsTranslate(double alpha, double Ea, double I00, double G0, double T0, double G, double T, diodepars *P, MODELSET *S)
+{
+	double kTT0, TT;
+	diodepars Po;
+	Po=*P;
+	Po.Iph=P->Iph*(1-alpha*(T-T0))*G/G0;
+	kTT0=K_B*T*T0;
+	TT=T/T0;
+	Po.I0=I00*TT*TT*TT*exp(Ea*(T-T0)/kTT0);
+	Po.nkT=P->nkT*TT;
+	// solve the special points
+	Po.Isc=Diode_I(0, NULL, Po, S);
+	Po.Voc=SolveVoc(Po, S);	
+	return Po;
+}
+
+
+typedef struct {
+	int N;
+	double G0,T0;
+	double *G,*T;
+	curvepars *P;
+	MODELSET *S;
+} DiodeGTErrStruct;
+double DiodeGTError(double x[7], void *args)
+{
+	DiodeGTErrStruct *S;
+	int i;
+	double E=0,e, I00, Voc0, Isc0;
+	S=(DiodeGTErrStruct *)args;
+	curvepars MP;
+	diodepars D0,D;
+	
+	I00=XtoDiodepars(x,S->G0,S->T0,&D0, S->S);
+	Voc0=D0.Voc;
+	Isc0=D0.Isc;
+	for (i=0;i<S->N;i++)
+	{
+		D=DiodeParsTranslate(x[5],x[6],I00,S->G0,S->T0,(S->G)[i],(S->T)[i],&D0,S->S);
+		MP=SolPar(D.Voc, D.Isc, (void *) &D, &diodeIV_i, S->S);
+		e=CurveParDist(MP, (S->P)[i],Voc0, Isc0);
+		if (isfinite(e))
+			E+=e;
+		else
+			E+=1.0; // punishment: 100% error (times 5 to match CurveParDist bahavior)
+	}
+	E/=(double)(S->N);// mean square error
+	return E;	
+}
+
+#define SIMPLSIZE 0.2 // simplex size
+#define MINSIMPLSIZE 1e-4 // simplex size
+generic_pars DiodeGTFit(curvepars *C, double *G, double *T, int N, 
+                        double *alpha, double *Ea, double *T0, 
+                        double *G0, MODELSET *S)
+{
+	DiodeGTErrStruct ARG={0};
+	double EPS2=S->fiteps, E;
+	int NCALLS, NRESTART, Err;	
+	double x[7], xmin[7], step[7];
+	diodepars D={0};
+	
+	EPS2*=EPS2;
+	// initialize S
+	ARG.G=G;
+	ARG.T=T;
+	ARG.P=C;
+	ARG.N=N;
+	ARG.S=S;
+	
+	InitParameters(ARG.P,ARG.G,ARG.T,ARG.N,ARG.S, xmin, &ARG.T0, &ARG.G0); // flag T conversion
+	if (xmin[0]<0)
+	{
+		generic_pars O={0};
+		return O;
+	}
+	
+	/* fill the x vector */
+	x[0]=xmin[0];
+	x[1]=xmin[1];
+	x[2]=xmin[2];
+	x[3]=xmin[3];
+	x[4]=xmin[4];
+	x[5]=xmin[5];
+	x[6]=xmin[6];
+	
+	step[0]=SIMPLSIZE*x[0]+MINSIMPLSIZE;
+	step[1]=SIMPLSIZE*x[1]+MINSIMPLSIZE;
+	step[2]=SIMPLSIZE*x[2]+MINSIMPLSIZE;
+	step[3]=SIMPLSIZE*x[3]+MINSIMPLSIZE;
+	step[4]=SIMPLSIZE*x[4]+MINSIMPLSIZE;
+	step[5]=SIMPLSIZE*x[5]+MINSIMPLSIZE;
+	step[6]=SIMPLSIZE*x[6]+MINSIMPLSIZE;
+	
+	E=DiodeGTError(x, (void *) (&ARG));
+	
+	//printf("Initial Error: %e\n", E/(double)N);
+	if (E>EPS2)
+		nelmin (DiodeGTError, (void *) (&ARG), 7, x, xmin, &E, EPS2, step, 50, 1000, &NCALLS,&NRESTART, &Err);
+	
+	XtoDiodepars(xmin,*G0,*T0,&D, S);
+	(*alpha) = xmin[5];
+	(*T0)    = ARG.T0;
+	(*G0)    = ARG.G0;
+	(*Ea)    = xmin[6];	
+	return Diode2GenericPars(D);
+}
+#undef SIMPLSIZE
+#undef MINSIMPLSIZE
+
+generic_pars DiodeGTTranslate(generic_pars P0, double alpha, double Ea, 
+                        double G, double T, double G0, double T0, 
+                        MODELSET *S)
+{
+	diodepars D;
+	double kTT0,TT;
+	
+	D=Generic2DiodePars(P0, S);
+
+	// translate D	
+	D.Iph=D.Iph*(1+alpha*(T-T0))*G/G0;
+	kTT0=K_B*T*T0;
+	TT=T/T0;
+	D.I0=D.I0*TT*TT*TT*exp(Ea*(T-T0)/kTT0);
+	D.nkT=D.nkT*TT;
+	D.Isc=D.Iph/(1+D.Rs/D.Rsh);
+	D.Voc=D.nkT*log(D.Iph/D.I0+1);
+	return Diode2GenericPars(D);	
+}
+ 

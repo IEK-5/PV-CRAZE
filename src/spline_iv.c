@@ -34,6 +34,8 @@
 #include "curvemodel.h"
 #include "neldermead.h"
 #include "diffevol.h"
+
+
 // internal struct
 typedef struct {
 	double V[13];
@@ -1022,6 +1024,7 @@ double FitErr(double x[5], void *args)
 	P2.TYPE=M_PVSPLINE;
 	for (i=0;i<pp->N;i++)
 	{
+		double e;
 		P2.pars[0]=pp->C[i].Voc;
 		P2.pars[1]=pp->C[i].Isc;
 		P2.pars[2]=pp->C[i].Vmpp;
@@ -1033,7 +1036,10 @@ double FitErr(double x[5], void *args)
 		P2.pars[8]=pp->C[i].Gsc;
 		P2.pars[9]=pp->C[i].Roc;
 		P2=IEC60891_v2(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), pp->T[i], pp->Tstd, pp->G[i], pp->Gstd, pp->S); // from stc to actual
-		E+=SplineRMSErr(P2, pp->P, pp->S);
+		e=SplineRMSErr(P2, pp->P, pp->S);
+		if (!isfinite(e))
+			e=1; // 100% error
+		E+=e;
 	}
 	return E;
 }
@@ -1387,88 +1393,13 @@ generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, d
 	return P;
 }
 
-
-// robuts option may help when outliers are present
-// did not help me, keep it just in case
-// #define ROBUST
-
-#ifdef ROBUST
-// quickselect routine to find the median
-/*
- *  This Quickselect routine is based on the algorithm described in
- *  "Numerical recipes in C", Second Edition,
- *  Cambridge University Press, 1992, Section 8.5, ISBN 0-521-43108-5
- *  The quick_median code is by Nicolas Devillard - 1998. Public domain,
- */
-#define ELEM_SWAP(a,b) { double t=(a);(a)=(b);(b)=t; }
-double quick_median(double arr[], int n) 
-{
-    int low, high ;
-    int median;
-    int middle, ll, hh;
-
-    low = 0 ; high = n-1 ; median = (low + high) / 2;
-    for (;;) 
-    {
-        if (high <= low) /* One element only */
-            return arr[median] ;
-
-        if (high == low + 1) 
-        {  /* Two elements only */
-            if (arr[low] > arr[high])
-                ELEM_SWAP(arr[low], arr[high]) ;
-            return arr[median] ;
-		}
-		/* Find median of low, middle and high items; swap into position low */
-		middle = (low + high) / 2;
-		if (arr[middle] > arr[high])    ELEM_SWAP(arr[middle], arr[high]);
-		if (arr[low] > arr[high])       ELEM_SWAP(arr[low], arr[high]);
-		if (arr[middle] > arr[low])     ELEM_SWAP(arr[middle], arr[low]);
-		/* Swap low item (now in position middle) into position (low+1) */
-		ELEM_SWAP(arr[middle], arr[low+1]) ;
-		/* Nibble from each end towards middle, swapping items when stuck */
-		ll = low + 1;
-		hh = high;
-		for (;;) 
-		{
-			do ll++; while (arr[low] > arr[ll]) ;
-			do hh--; while (arr[hh]  > arr[low]) ;
-
-			if (hh < ll)
-			break;
-
-			ELEM_SWAP(arr[ll], arr[hh]) ;
-		}
-		/* Swap middle item (in position low) back into correct position */
-		ELEM_SWAP(arr[low], arr[hh]) ;
-		/* Re-set active partition */
-		if (hh <= median)
-			low = ll;
-		if (hh >= median)
-			high = hh - 1;
-    }
-}
-#undef ELEM_SWAP
-#endif //ROBUST
-
-
 double FitErr2(double x[6], void *args)
 {
-#ifdef ROBUST
-	double E=0, *e, s, d, ee;
-#else
-	double E=0;
-#endif
+	double E=0, e;
 	errpars *pp;
 	int i;
 	generic_pars P2;
 	pp=(errpars *) args;
-#ifdef ROBUST
-	if((e=Emalloc(pp->N*sizeof(double)))==NULL)
-	{
-		return E;
-	}
-#endif
 	for (i=0;i<pp->N;i++)
 	{
 		P2.TYPE=M_PVSPLINE;
@@ -1483,31 +1414,11 @@ double FitErr2(double x[6], void *args)
 		P2.pars[8]=pp->C[i].Gsc;
 		P2.pars[9]=pp->C[i].Roc;
 		P2=IEC60891_v3(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), FX5(x[5]), pp->P.P[4].x, pp->T[i], pp->Tstd, pp->Tstd, pp->G[i], pp->Gstd, pp->Gstd, pp->S); // from actual to std
-
-#ifdef ROBUST
-		e[i]=SplineRMSErr(P2, pp->P, pp->S);
-		E+=e[i];
-#else
-		E+=SplineRMSErr(P2, pp->P, pp->S);
-#endif		
+		e=SplineRMSErr(P2, pp->P, pp->S);
+		if (!isfinite(e))
+			e=1;
+		E+=e;
 	}
-#ifdef ROBUST
-	// robust error, only take errors within one std from median
-	s=0;
-	for (i=0;i<pp->N;i++)
-		s+=(e[i]-E)*(e[i]-E);
-	s=sqrt(s/pp->N);
-	E=quick_median(e, pp->N); 
-	ee=0;
-	for (i=0;i<pp->N;i++)
-	{
-		d=(e[i]-E)/s;
-		if (d<1)
-			ee+=e[i];
-	}		
-	E=ee;
-	free(e);
-#endif
 
 	//printf("%e %e %e %e %e %e %e\n", x[0], x[1], x[2], x[3], x[4], x[5], E);
 	return E;

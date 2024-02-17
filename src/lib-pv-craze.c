@@ -33,8 +33,10 @@
 #include "curve.h"
 #include "tictoc.h"
 #include "fitmodels.h"
-#include "spline_iv.h" // convexity
+#include "spline_iv.h" // IEC norm fitting and translation
+#include "diode_iv.h"  // Diode G-T fitting and translation
 #include "lib-pv-craze-structs.h"
+#include "furthestsampling.h" // reduce datasets before fitting
 
 typedef struct {
 	int flag;
@@ -961,14 +963,27 @@ MODELSET FitIECMODSET = {
 	false,				// refine solar cell parameter during fit (if applicable)
 };
 
+#define FURTHEST_N 1000
+
+
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
                    double *alpha, double *beta, double *a, double *Rs, double *kappa)
 {
-	curvepars Out;
+	curvepars Out={0};
 	generic_pars P;
+	double *gg, *tt;
+	curvepars *cc;
+	int n;
+	
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Fit");
-	P=IEC60891Fit_v2(pars, G, T, N, Tstd, Gstd, alpha, beta, a, Rs, kappa, &FitIECMODSET);
+	
+	
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	if (!n)
+		return Out;
+		
+	P=IEC60891Fit_v2(cc, gg, tt, n, Tstd, Gstd, alpha, beta, a, Rs, kappa, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -979,7 +994,9 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 	Out.Iqmp2=P.pars[7];
 	Out.Gsc  =P.pars[8];
 	Out.Roc  =P.pars[9];	
-
+	free(gg);
+	free(tt);
+	free(cc);	
 	return Out;
 }
 
@@ -987,11 +1004,19 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
                    double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa)
 {
-	curvepars Out;
+	curvepars Out={0};
 	generic_pars P;
+	double *gg, *tt;
+	curvepars *cc;
+	int n;
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
-	P=IEC60891Fit_v3(pars, G, T, N, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, &FitIECMODSET);
+	
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	if (!n)
+		return Out;
+		
+	P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -1002,6 +1027,101 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	Out.Iqmp2=P.pars[7];
 	Out.Gsc  =P.pars[8];
 	Out.Roc  =P.pars[9];	
+	free(gg);
+	free(tt);	
+	free(cc);	
 
 	return Out;
+}
+
+MODELSET FitDIODEGTMODSET = {
+	M_NONE,
+	1000,				// max iteration for basic fitting algorithm (if applicale)
+	1e-5,				// eps for basic fitting optimizer (if applicale)
+	50,					// iterations for model evaluation (if applicale)
+	100,				// population size (if applicale)
+	1e-5,				// model evaluation eps (if applicale)
+	1e-2,				// oeps eps threshold for expensive optim,ization (if applicable)
+	false,				// refine solar cell parameter during fit (if applicable)
+};
+generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G, 
+                double *T, int N, double *alpha, double *Ea, double Tstd, double Gstd, char unit)
+{
+	double T0, G0;
+	generic_pars P={0};
+	double *gg, *tt;
+	curvepars *cc;
+	int n;
+	if (pvcraze_verbose&VERB_HEAD)
+		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - Diode G-T Fit");
+		
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	if (!n)
+		return P;
+		
+	if (unit=='C')
+	{
+		int i;
+		for (i=0;i<n;i++)
+			tt[i]+=273.15;
+		Tstd+=273.15;
+	}
+		
+		
+	P=DiodeGTFit(cc,gg,tt,n,alpha,Ea, &T0,&G0, &FitDIODEGTMODSET);
+	
+	P=DiodeGTTranslate(P,*alpha,*Ea,Gstd,Tstd,G0,T0,&FitDIODEGTMODSET);
+	free(gg);
+	free(tt);	
+	free(cc);	
+	return P;
+}
+
+
+generic_pars *pv_craze_translate_diode_GT(generic_pars pars, double Gstd, 
+                 double Tstd, double *G, double *T, int N, double alpha, 
+                 double Ea, char unit)
+{
+	int i, pc=0;
+	generic_pars *Cout=NULL;
+	if (pvcraze_verbose&VERB_HEAD)
+		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - Diode G-T Translate");
+	if (pars.TYPE!=M_DIODE)
+	{
+		fprintf(stderr,"ERROR: Diode G-T Translation requires generic parameters of type Diode\n");
+		return Cout;
+	}
+	BarScale(LLEN, TICS);
+	if((Cout=Emalloc(N*sizeof(generic_pars)))==NULL)
+	{
+		fprintf(stderr,"INFO: Memory allocation failure in Diode G-T Translate, no curves can be translated\n");
+		return Cout;
+	}
+	for (i=0;i<N;i++)
+	{
+		if (unit=='C')
+			Cout[i]=DiodeGTTranslate(pars,alpha,Ea,G[i],T[i]+273.15,Gstd,Tstd+273.15,&FitDIODEGTMODSET);
+		else
+			Cout[i]=DiodeGTTranslate(pars,alpha,Ea,G[i],T[i],Gstd,Tstd,&FitDIODEGTMODSET);
+		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
+	}
+	pc=ProgressBar(100, pc, LLEN, TICS);
+	return Cout;
+}
+
+generic_pars pv_craze_translate_single_diode_GT(generic_pars pars, 
+                 double Gstd, double Tstd, double G, double T, 
+                 double alpha, double Ea, char unit)
+{
+	generic_pars P={0};
+	if (pars.TYPE!=M_DIODE)
+	{
+		fprintf(stderr,"ERROR: Diode G-T Translation requires generic parameters of type Diode\n");
+		return P;
+	}
+	if (unit=='C')
+		P=DiodeGTTranslate(pars,alpha,Ea,G,T+273.15,Gstd,Tstd+273.15,&FitDIODEGTMODSET);
+	else
+		P=DiodeGTTranslate(pars,alpha,Ea,G,T,Gstd,Tstd,&FitDIODEGTMODSET);
+	return P;
 }

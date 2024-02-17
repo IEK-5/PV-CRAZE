@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = -Wall
 
 lib_LTLIBRARIES = libpvcraze.la
-libpvcraze_la_SOURCES=emalloc.c curve.c fitmodels.c Error.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h io.h Error.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
+libpvcraze_la_SOURCES=emalloc.c curve.c fitmodels.c Error.c quickselect.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c furthestsampling.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h io.h Error.h quickselect.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h furthestsampling.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
 libpvcraze_la_LDFLAGS = -lm -Wl,--version-script=${srcdir}/libpvcraze.map -no-undefined  -version-number $(LIBVERSION)
 include_HEADERS =  pvcraze.h
 

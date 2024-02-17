@@ -74,4 +74,18 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
                    double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa);
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
                    double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa);
+                   
+/* **************************************************
+ * Diode model G-T translation model
+ * **************************************************/
+// unit is either 'C' or 'K' and refers to the temperature unit.
+generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G, 
+                double *T, int N, double *alpha, double *Ea, 
+                double Tstd, double Gstd, char unit);
+generic_pars pv_craze_translate_single_diode_GT(generic_pars pars, 
+                double Gstd, double Tstd, double G, double T, 
+                double alpha, double Ea, char unit);
+generic_pars *pv_craze_translate_diode_GT(generic_pars pars, double Gstd, 
+                double Tstd, double *G, double *T, int N, double alpha, 
+                double Ea, char unit);
 //END-HEADER-EXPORT mark the end of a block that describes the C api

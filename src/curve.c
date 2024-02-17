@@ -1766,6 +1766,28 @@ curvepars AnalyzeLSQ(curve C, curve *Cout, int *FLAGCODE, analyze_settings setti
 	return par;
 }
 
+
+double CurveParDist(curvepars p, curvepars ref, double Voc0, double Isc0)
+{ // return RMSE in curvepars
+	double E, dv,di;
+	dv=(p.Voc-ref.Voc)/Voc0;
+	E=dv*dv;
+	di=(p.Isc-ref.Isc)/Isc0;
+	E+=di*di;
+	
+	dv=(p.Vmpp-ref.Vmpp)/Voc0;
+	di=(p.Impp-ref.Impp)/Isc0;
+	E+=dv*dv+di*di;
+	dv=(p.Vqmp1-ref.Vqmp1)/Voc0;
+	di=(p.Iqmp1-ref.Iqmp1)/Isc0;
+	E+=dv*dv+di*di;
+	dv=(p.Vqmp2-ref.Vqmp2)/Voc0;
+	di=(p.Iqmp2-ref.Iqmp2)/Isc0;
+	E+=dv*dv+di*di;
+	return sqrt(E/5);	
+}
+
+
 // this is broken, this routine checks whether a plain spline interpolation would be monotonous
 // we should remove the monotone flags from the analyze routine or only chack actual monotone 
 // properties w.r.t. the solar cell parameters 

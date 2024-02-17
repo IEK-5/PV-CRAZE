@@ -72,4 +72,5 @@ curve Resample(curve C, int N, double Voc, double Isc);
  * am='p': parametric */
 curvepars AnalyzeLSQ(curve C, curve *Cout, int *FLAGCODE, analyze_settings settings);
 int FlagMono(curvepars par);
+double CurveParDist(curvepars p, curvepars ref, double Voc0, double Isc0);
 # endif

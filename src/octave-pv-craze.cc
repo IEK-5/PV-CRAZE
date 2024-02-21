@@ -1075,8 +1075,9 @@ Output:\n\
 	double *TT, *GG;
 	double alpha, beta, a, Rs, kappa, Tstd, Gstd;
 	int N, Nr,Nc;
+	int FN=0;
 	int i;
-  	if (nargin != 5)
+  	if ((nargin != 5)&&(nargin != 6))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1088,6 +1089,9 @@ Output:\n\
 	Tstd=args(3).double_value();
 	Gstd=args(4).double_value();
 	
+	if(nargin==6)
+		FN=args(5).int_value();
+		
 	Nr=Pin.rows();
 	Nc=Pin.cols();
 	if ((Nr<3)||(Nc!=10))
@@ -1149,7 +1153,7 @@ Output:\n\
 		TT[i]=T(i,0);	
 		GG[i]=G(i,0);			
 	}
-	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa);
+	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa,FN);
 	
 	free(GG);
 	free(TT);
@@ -1185,7 +1189,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_fit_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd)\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N])\n\
 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
 coefficients and determines standard test condition curve parameters to best describe \n\
 provided temperature and irradiance dependent curve parameters Uses the IEC60891 version 3 (2021)\n\n\
@@ -1218,8 +1222,9 @@ Output:\n\
 	double *TT, *GG;
 	double alpha, beta, B1, B2, Rs, kappa, Tstd, Gstd;
 	int N, Nr,Nc;
+	int FN=0;
 	int i;
-  	if (nargin != 5)
+  	if ((nargin != 5)&&(nargin != 6))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1231,6 +1236,9 @@ Output:\n\
 	Tstd=args(3).double_value();
 	Gstd=args(4).double_value();
 	
+	if(nargin==6)
+		FN=args(5).int_value();
+		
 	Nr=Pin.rows();
 	Nc=Pin.cols();
 	if ((Nr<3)||(Nc!=10))
@@ -1293,7 +1301,7 @@ Output:\n\
 		GG[i]=G(i,0);			
 	}
 	
-	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa);
+	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN);
 	
 	free(GG);
 	free(TT);
@@ -1571,6 +1579,7 @@ Output:\n\
 	Rs=args(12).double_value();
 	kappa=args(13).double_value();
 	
+		
 	Nr=Pin.rows();
 	Nc=Pin.cols();
 	if ((Nr==0)||(Nc!=10))
@@ -1708,7 +1717,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_fit_diode_GT, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{modelpar_std}, alpha, Ea] =} pvcraze_fit_diode_GT (@var{esp}, T, G, Tstd, Gstd [,unit])\n\
+@deftypefn {} {[@var{modelpar_std}, alpha, Ea] =} pvcraze_fit_diode_GT (@var{esp}, T, G, Tstd, Gstd [,unit,furthest_N])\n\
 pvcraze_fit_diode_GT is part of the PV-CRAZE package and fits a diode model \
 to temperature and irradiance dependent extended solar cell parameters \
 It returns diode model parameters at some specified standard temperatre \
@@ -1743,7 +1752,8 @@ Output:\n\
 	int N, Nr,Nc;
 	int i;
 	char unit ='K';
-  	if ((nargin != 5)&&(nargin !=6))
+	int FN=0,ud=0;
+  	if ((nargin < 5)&&(nargin >7))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1754,24 +1764,46 @@ Output:\n\
 	G=args(2).matrix_value();
 	Tstd=args(3).double_value();
 	Gstd=args(4).double_value();
-  	if (nargin==6)
+	for (i=5;i<nargin;i++)
   	{
-		std::string Aunit;
-		Aunit=args(5).string_value();
-		int cc=0;
-		cc+=(strncmp("C",		(char *) Aunit.c_str(), 10)==0);
-		cc+=(strncmp("Celcius",	(char *) Aunit.c_str(), 10)==0);
-		if (cc)
-			unit='C';
-		else 
+		if (args(i).is_string ())
 		{
-			cc+=(strncmp("K",		(char *) Aunit.c_str(), 10)==0);
-			cc+=(strncmp("Kelvin",	(char *) Aunit.c_str(), 10)==0);
-			if (!cc)
+			std::string Aunit;
+			Aunit=args(i).string_value();
+			int cc=0;
+			if (ud)
 			{
-				fprintf(stderr, "Unknown temperature unit \"%s\"\n", (char *) Aunit.c_str());
-				fprintf(stderr, "Using default unit Kelvin\n");
+				fprintf(stderr,"Warning: cannot define temperature unit more than once!\n");
+				print_usage ();
+				return octave_value_list ();
 			}
+				
+			cc+=(strncmp("C",		(char *) Aunit.c_str(), 10)==0);
+			cc+=(strncmp("Celcius",	(char *) Aunit.c_str(), 10)==0);
+			if (cc)
+			{
+				unit='C';
+				ud=1;
+			}
+			else 
+			{
+				cc+=(strncmp("K",		(char *) Aunit.c_str(), 10)==0);
+				cc+=(strncmp("Kelvin",	(char *) Aunit.c_str(), 10)==0);
+				if (cc)
+					ud=1;
+			}
+		}
+		if (args(i).is_scalar_type ())
+		{
+			if (FN)
+			{
+				fprintf(stderr,"Warning: cannot define furthest sampling N more than once!\n");
+				print_usage ();
+				return octave_value_list ();
+			}
+			FN = args(i).int_value ();
+			if (FN<0)
+				FN=0;
 		}
 	}
 				
@@ -1839,7 +1871,7 @@ Output:\n\
 		GG[i]=G(i,0);	
 	}
 	
-	Pstd=pv_craze_fit_diode_GT(Cin, GG,TT, N, &alpha, &Ea,Tstd,Gstd, unit);
+	Pstd=pv_craze_fit_diode_GT(Cin, GG,TT, N, &alpha, &Ea,Tstd,Gstd, unit,FN);
 	
 	free(GG);
 	free(TT);

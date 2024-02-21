@@ -963,11 +963,8 @@ MODELSET FitIECMODSET = {
 	false,				// refine solar cell parameter during fit (if applicable)
 };
 
-#define FURTHEST_N 1000
-
-
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *a, double *Rs, double *kappa)
+                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -978,7 +975,8 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Fit");
 	
-	
+	if (!FURTHEST_N)
+		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
 	if (!n)
 		return Out;
@@ -1002,7 +1000,7 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 
 
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa)
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1012,6 +1010,8 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
 	
+	if (!FURTHEST_N)
+		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
 	if (!n)
 		return Out;
@@ -1045,7 +1045,8 @@ MODELSET FitDIODEGTMODSET = {
 	false,				// refine solar cell parameter during fit (if applicable)
 };
 generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G, 
-                double *T, int N, double *alpha, double *Ea, double Tstd, double Gstd, char unit)
+                double *T, int N, double *alpha, double *Ea, double Tstd, 
+                double Gstd, char unit, int FURTHEST_N)
 {
 	double T0, G0;
 	generic_pars P={0};
@@ -1055,6 +1056,8 @@ generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - Diode G-T Fit");
 		
+	if (!FURTHEST_N)
+		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
 	if (!n)
 		return P;

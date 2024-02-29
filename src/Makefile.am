@@ -6,8 +6,8 @@ libpvcraze_la_SOURCES=emalloc.c curve.c fitmodels.c Error.c quickselect.c curvem
 libpvcraze_la_LDFLAGS = -lm -Wl,--version-script=${srcdir}/libpvcraze.map -no-undefined  -version-number $(LIBVERSION)
 include_HEADERS =  pvcraze.h
 
-BUILT_SOURCES =  models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h Makefile_octave MANIFEST.in setup.py
-MOSTLYCLEANFILES = models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h octave-pv-craze.tar.gz setup.py python-pv-craze.tar.gz Makefile_octave MANIFEST.in setup.py
+BUILT_SOURCES =  models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h Makefile_octave pyproject.toml setup.py
+MOSTLYCLEANFILES = models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h octave-pv-craze.tar.gz setup.py python-pv-craze.tar.gz Makefile_octave pyproject.toml setup.py
 modelfiles = bezier2_iv.h  KH_iv.h spline_iv.h bezier3_iv.h diode_iv.h PC_iv.h pwl_iv.h apwl_iv.h 
 
 lib-pv-craze.$(OBJEXT): $(pv_craze_SOURCES) models.h model_table.h ivanalyzeflags.h
@@ -15,7 +15,7 @@ fitmodels.$(OBJEXT): models.h model_table.h fitmodels.c
 curve.$(OBJEXT): ivanalyzemessages.h ivanalyzeflags.h curve.c curve.h
 spline_iv.$(OBJEXT): splinefit.h
 
-EXTRA_DIST = octave-pv-craze.cc Makefile_octave.in octave_configure.ac octave_makefile.am setup.py.in python-pv-craze.c MANIFEST.in.in
+EXTRA_DIST = octave-pv-craze.cc Makefile_octave.in octave_configure.ac octave_makefile.am setup.py.in python-pv-craze.c pyproject.toml.in
 dist_pkgdata_DATA = octave-pv-craze.tar.gz python-pv-craze.tar.gz
 
 models.h model_table.h: $(modelfiles)
@@ -29,18 +29,13 @@ Makefile_octave: Makefile_octave.in ivanalyzemessages.h ivanalyzeflags.h models.
 	sed -i 's|cflags|$(CFLAGS)|g' Makefile_octave
 	sed -i 's|lflags|$(LIBS)|g' Makefile_octave
 	sed -i 's|srcdir|${srcdir}|g' Makefile_octave
-MANIFEST.in: MANIFEST.in.in
-	sed 's|__srcdir__|$(srcdir)|g' ${srcdir}/MANIFEST.in.in > MANIFEST.in
-setup.py: setup.py.in ivanalyzemessages.h ivanalyzeflags.h models.h model_table.h python-pv-craze.c
+pyproject.toml: pyproject.toml.in
+	sed 's|__version__|$(subst :,.,$(VERSION))|g' ${srcdir}/pyproject.toml.in > pyproject.toml
+setup.py: setup.py.in python-pv-craze.c
 	sed 's|__version__|$(subst :,.,$(VERSION))|g' ${srcdir}/setup.py.in > setup.py
-	sed -i 's|__sources__|$(pysrc)|g' setup.py
-	sed -i 's|__CFLAGS__|$(CFLAGS)|g' setup.py
-	sed -i 's|__LDFLAGS__|$(LDFLAGS)|g' setup.py
-	sed -i 's|__LIBS__|$(LIBS)|g' setup.py
-	sed -i 's|__sources__|$(pv_craze_SOURCES)|g' setup.py
-python-pv-craze.tar.gz: MANIFEST.in setup.py
+python-pv-craze.tar.gz: pyproject.toml setup.py
 	mkdir -p python-pv-craze-$(subst :,.,$(VERSION))
-	cp setup.py ${srcdir}/python-pv-craze.c ${srcdir}/curve.h ${srcdir}/lib-pv-craze.h ${srcdir}/lib-pv-craze-structs.h MANIFEST.in python-pv-craze-$(subst :,.,$(VERSION))
+	cp setup.py pyproject.toml ${srcdir}/python-pv-craze.c ${srcdir}/curve.h ${srcdir}/lib-pv-craze.h ${srcdir}/lib-pv-craze-structs.h pyproject.toml python-pv-craze-$(subst :,.,$(VERSION))
 	tar -zcvf python-pv-craze.tar.gz python-pv-craze-$(subst :,.,$(VERSION))
 	rm -rf  python-pv-craze-$(subst :,.,$(VERSION))
 octave-pv-craze.tar.gz: Makefile_octave

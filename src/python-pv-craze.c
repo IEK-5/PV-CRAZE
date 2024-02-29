@@ -1057,7 +1057,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=0, beta=0, a=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, j;
+	int N, M, n, m, i, j, fN=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
 	
@@ -1067,10 +1067,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		"T",
 		"Gstd",
 		"Tstd",
+		"furthest_N",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|dd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd, &fN)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1078,6 +1079,9 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		return NULL;
 	if(NULL==T1) 
 		return NULL;
+		
+	if (fN<0)
+		fN=0;
 		
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
@@ -1134,7 +1138,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	}
 	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
-	out=pv_craze_fit_IEC60891_v2(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &a, &Rs, &kappa);
+	out=pv_craze_fit_IEC60891_v2(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &a, &Rs, &kappa, fN);
 	/* clean up*/
 	free(in);
 	free(_G1);	
@@ -1324,7 +1328,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=0, beta=0, B1=0, B2=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i;
+	int N, M, n, m, i, fN=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
 	int vh=0;
@@ -1335,10 +1339,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		"T",
 		"Gstd",
 		"Tstd",
+		"furthest_N",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|dd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd,&fN)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1346,7 +1351,8 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		return NULL;
 	if(NULL==T1) 
 		return NULL;
-		
+	if (fN<0)
+		fN=0;	
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1402,7 +1408,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	}
 	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
-	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &B1, &B2, &Rs, &kappa);
+	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &B1, &B2, &Rs, &kappa,fN);
 	/* clean up*/
 	free(in);
 	free(_G1);	

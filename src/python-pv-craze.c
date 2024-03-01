@@ -59,6 +59,12 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyObject *kwargs);
 
+/* **************************************************
+ * Diode Temperature and Irradiance routines
+ * **************************************************/
+static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs);
+
 
 /* ==== Set up the methods table ====================== */
 static PyMethodDef pv_craze_methods[] = {
@@ -79,9 +85,10 @@ static PyMethodDef pv_craze_methods[] = {
 	{"fit_IEC60891_v2", 		py_pv_craze_fit_IEC60891_v2			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 fitting routine"},
 	{"translate_IEC60891_v3", 	py_pv_craze_translate_IEC60891_v3	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 translation routine"},
 	{"fit_IEC60891_v3", 		py_pv_craze_fit_IEC60891_v3			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 fitting routine"},
+	{"translate_diode_GT",		py_pv_craze_translate_diode_GT		, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature translation routine"},
+	{"fit_diode_GT",	 		py_pv_craze_fit_diode_GT			, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature fitting routine"},
 	{ NULL, NULL, 0, NULL }     /* Sentinel - marks the end of this structure */
 };
-
 
 static struct PyModuleDef python_pvcraze = {
 	PyModuleDef_HEAD_INIT,
@@ -722,7 +729,7 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 8), PyFloat_FromDouble(solpars.Gsc));
 			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 9), PyFloat_FromDouble(solpars.Roc));
 		}
-		PyList_SetItem(py_solparsList_out, i, (PyObject *)py_solpars_out); 	       
+		PyList_SetItem(py_solparsList_out, j, (PyObject *)py_solpars_out); 	       
 	}
 	
 
@@ -1433,4 +1440,265 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		"esp_std", epars_out, "alpha", alpha,
 		"beta", beta, "B1", B1, "B2", B2, 
 		"Rs", Rs, "kappa", kappa);
+} 
+
+
+
+static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	PyArrayObject *mpars_in, *mpars_out;
+	PyArrayObject *G, *T;
+	double Vocstd=0, Tstd=-300, Gstd=0, alpha=0, Ea=0;
+	double *_G1, *_T1;
+	int N, n, m, i, j;
+	generic_pars in, *out;
+	npy_intp ArrayDim[2]={0};
+	char unit ='K', *sunit=NULL;
+	
+	static char *kwlist[] = {
+		"modelpar",
+		"Tstd",
+		"Gstd",
+		"T",
+		"G",
+		"alpha",
+		"Ea",
+		"Tunit",
+		NULL
+	};
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!ddO!O!dd|s",kwlist,&PyArray_Type, &mpars_in,&Tstd, &Gstd, &PyArray_Type, &T,&PyArray_Type, &G,&alpha, &Ea, &sunit)) 
+		return NULL;
+	if(NULL==mpars_in) 
+		return NULL;
+	if(NULL==G) 
+		return NULL;
+	if(NULL==T) 
+		return NULL;
+	if (Tstd<=-300)
+		return NULL;
+	if (Gstd<=0)
+		return NULL;
+	if (sunit)
+	{
+		int cc=0;
+		cc+=(strncmp("C",		sunit, 10)==0);
+		cc+=(strncmp("Celcius",	sunit, 10)==0);
+		if (cc)
+			unit='C';
+		else 
+		{
+			cc+=(strncmp("K",		sunit, 10)==0);
+			cc+=(strncmp("Kelvin",	sunit, 10)==0);
+			if (cc)
+				unit='K';
+			else
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: expect a temperature unit(\"C\"/\"Celcius\"/\"K\"/\"Kelvin\")");
+				return NULL;	
+			}
+		}
+	}
+		
+	n=mpars_in->dimensions[0];
+	m=mpars_in->dimensions[1];
+	if ((m!=11)||(n!=1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: expect an 1x11 modelpar input array");
+		return NULL;	
+	}
+	
+	N=G->dimensions[0];
+	n=T->dimensions[0];
+	if (n!=N)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: T input array must be of length n (number of rows in G input array)");
+		return NULL;	
+	}
+	
+	{ // read input model parameters
+		double a;
+		a=*(double *)(mpars_in->data);
+		if (fabs(a-round(a))>1e-15)
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+			return NULL;	
+		}
+		if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+			return NULL;	
+		}
+		in.TYPE=(MODEL_TYPE)a;
+		for(i=0; i<10; i++)
+			in.pars[i]=*(double *)(mpars_in->data+(i+1)*mpars_in->strides[1]);
+	}
+	
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	for(i=0; i<N; i++)
+		_G1[i]=*(double *)(G->data+i*G->strides[0]);
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	for(i=0; i<N; i++)
+		_T1[i]=*(double *)(T->data+i*T->strides[0]);
+		
+	out=pv_craze_translate_diode_GT(in,Gstd,Tstd, _G1, _T1, N, alpha, Ea, unit);
+	free(_G1);
+	free(_T1);
+	
+	
+	ArrayDim[0]=N;
+	ArrayDim[1]=11;
+	mpars_out=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
+	// output diode model parameters
+	for(i=0; i<N; i++)
+	{
+		PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, 0), PyFloat_FromDouble((double)out[i].TYPE));
+		for(j=0; j<10; j++)
+			PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, j+1), PyFloat_FromDouble(out[i].pars[j]));	
+	}
+	free(out);
+	return Py_BuildValue("O", mpars_out);
+} 
+
+static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	PyArrayObject *epars_in, *mpars_out;
+	PyArrayObject *G1, *T1;
+	double alpha=0, Ea=0, Tstd=298.15, Gstd=1000;
+	double *_G1, *_T1;
+	int N, M, n, m, i, fN=0;
+	curvepars *in;
+	generic_pars out;
+	npy_intp ArrayDim[1]={11};
+	int vh=0;
+	char unit ='K', *sunit=NULL;
+				
+			
+	char * str; 
+	MODEL_TYPE T;
+	if(!PyArg_ParseTuple(args, "s", &str))
+		return NULL;
+	
+	static char *kwlist[] = {
+		"esp",
+		"G",
+		"T",
+		"Gstd",
+		"Tstd",
+		"Tunit",
+		"furthest_N",
+		NULL
+	};
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddsi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd,&sunit,&fN)) 
+		return NULL;
+	if(NULL==epars_in) 
+		return NULL;
+	if(NULL==G1) 
+		return NULL;
+	if(NULL==T1) 
+		return NULL;
+	if (sunit)
+	{
+		int cc=0;
+		cc+=(strncmp("C",		sunit, 10)==0);
+		cc+=(strncmp("Celcius",	sunit, 10)==0);
+		if (cc)
+			unit='C';
+		else 
+		{
+			cc+=(strncmp("K",		sunit, 10)==0);
+			cc+=(strncmp("Kelvin",	sunit, 10)==0);
+			if (cc)
+				unit='K';
+			else
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: expect a temperature unit(\"C\"/\"Celcius\"/\"K\"/\"Kelvin\")");
+				return NULL;	
+			}
+		}
+	}
+	if (fN<0)
+		fN=0;	
+	
+	n=epars_in->dimensions[0];
+	m=epars_in->dimensions[1];
+	if (m!=10)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
+		return NULL;	
+	}
+	N=n;
+	n=G1->dimensions[0];
+	if (n!=N)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: G input array must be of length n (number of rows in epar input array)");
+		return NULL;	
+	}
+	n=T1->dimensions[0];
+	if (n!=N)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: T input array must be of length n (number of rows in epar input array)");
+		return NULL;	
+	}
+	if ((in=malloc(N*sizeof(curvepars)))==NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	for(i=0; i<N; i++)
+	{
+		in[i].Voc=*(double *)(epars_in->data+i*epars_in->strides[0]+0*epars_in->strides[1]);
+		in[i].Isc=*(double *)(epars_in->data+i*epars_in->strides[0]+1*epars_in->strides[1]);
+		in[i].Vmpp=*(double *)(epars_in->data+i*epars_in->strides[0]+2*epars_in->strides[1]);
+		in[i].Impp=*(double *)(epars_in->data+i*epars_in->strides[0]+3*epars_in->strides[1]);
+		in[i].Vqmp1=*(double *)(epars_in->data+i*epars_in->strides[0]+4*epars_in->strides[1]);
+		in[i].Iqmp1=*(double *)(epars_in->data+i*epars_in->strides[0]+5*epars_in->strides[1]);
+		in[i].Vqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+6*epars_in->strides[1]);
+		in[i].Iqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+7*epars_in->strides[1]);
+		in[i].Gsc=*(double *)(epars_in->data+i*epars_in->strides[0]+8*epars_in->strides[1]);
+		in[i].Roc=*(double *)(epars_in->data+i*epars_in->strides[0]+9*epars_in->strides[1]);
+	}
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	for(i=0; i<N; i++)
+		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	for(i=0; i<N; i++)
+		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
+	out=pv_craze_fit_diode_GT(in, _G1, _T1, N, &alpha, &Ea,Tstd,Gstd, unit,fN);
+	/* clean up*/
+	free(in);
+	free(_G1);	
+	free(_T1);
+	
+	
+	//build dictionary with model pars alpha, Ea	
+	mpars_out=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
+	PyArray_SETITEM(mpars_out, PyArray_GETPTR1(mpars_out, 0), PyFloat_FromDouble((double)out.TYPE));
+	for(i=1; i<11; i++)
+		PyArray_SETITEM(mpars_out, PyArray_GETPTR1(mpars_out, i), PyFloat_FromDouble(out.pars[i-1]));	
+	
+	
+	return Py_BuildValue("{s:O,s:d,s:d}",
+		"modelpar", mpars_out, "alpha", alpha,"Ea", Ea);
 } 

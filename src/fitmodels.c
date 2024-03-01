@@ -156,12 +156,11 @@ char *NextWord(const char *start, char *word)
 #define MAXPOP 1000
 
 
-void ParseModel(const char *spec, char *word, MODELSET *S)
+int ParseModel(const char *spec, char *word, MODELSET *S)
 {
 	char *next;
 	int inum;
 	double dnum;
-	
 	next=(char *)spec;
 	// parse model specs
 	while (next)
@@ -253,6 +252,10 @@ void ParseModel(const char *spec, char *word, MODELSET *S)
 				break;
 		}
 	}
+	if (S->M==M_NONE)
+		return 1;
+	else
+		return 0;
 }
 
 
@@ -352,7 +355,11 @@ void AddModel(MODEL_LIST *L, const char *spec)
 		return;
 	}
 	
-	ParseModel(spec,word, L->List+L->N-1);
+	if (ParseModel(spec,word, L->List+L->N-1))
+	{
+		fprintf(stderr,"Error: could not add model %s\n", spec);
+		L->N--;		
+	}
 	free(word);
 }
 

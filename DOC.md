@@ -124,7 +124,7 @@ The used datatypes in Octave and python differ. In Octave we mostly use arrays a
 
 the python equivalent returns a dictionary with the elements ```A``` and ```B```.
 
-Argument handling is different in python and octave. In püython we use the keyword notation, meaning that you can mix positional arguments with keyword arguments, e.g. calling the function ```<function>(X,Y)``` as ```<function>(1,2)``` yields the same results as ```<function>(Y=2,X=1)```. This type of notation is not available in Octave, instead we use there positional arguments for the mandatory arguments. Optional arguments are passed as name value pairs, e.g. given a function with the mandatory (positional) arguments ```X``` and ```Y``` and the optional argument ```foo```, we can call as ```<function>(1,2,"foo", 3)```, which would make ```X=1```, ```Y=2```, and ```foo=3```.
+Argument handling is different in python and octave. In python we use the keyword notation, meaning that you can mix positional arguments with keyword arguments, e.g. calling the function ```<function>(X,Y)``` as ```<function>(1,2)``` yields the same results as ```<function>(Y=2,X=1)```. This type of notation is not available in Octave, instead we use there positional arguments for the mandatory arguments. Optional arguments are passed as name value pairs, e.g. given a function with the mandatory (positional) arguments ```X``` and ```Y``` and the optional argument ```foo```, we can call as ```<function>(1,2,"foo", 3)```, which would make ```X=1```, ```Y=2```, and ```foo=3```.
 
 To load pvcraze use in Octave:
 
@@ -134,7 +134,7 @@ and in python
 
     import pvcraze
     
-In octave the routine secription is built in and accessable uwinf the ```help``` command, e.g. ```help pvcraze_analyze```.
+In octave the routine decription is built in and accessable using the ```help``` command, e.g. ```help pvcraze_analyze```.
 
 ### pvcraze_analyze:
      [esp,flags,modelpar,err] = pvcraze_analyze (IV,[optional-parameters])
@@ -256,12 +256,12 @@ In octave the routine secription is built in and accessable uwinf the ```help```
           
 #### pvcraze_fit_IEC60891_v2
      [esp_std, alpha, beta, a, Rs, kappa] = pvcraze_fit_IEC60891_v2 
-     (esp, T, G, Tstd, Gstd)
+     (esp, T, G, Tstd, Gstd [, unit,furthest_N])
      pvcraze_fit_IEC60891_v2 is part of the PV-CRAZE package and fits
      IEC60891 translation coefficients and determines standard test
      condition curve parameters to best describe provided temperature
      and irradiance dependent curve parameters.  Uses the IEC60891
-     version 2 (2009)
+     version 2 (2009). 
 
      Input:
         • esp: array with extended solar cell parameters, one row
@@ -272,6 +272,12 @@ In octave the routine secription is built in and accessable uwinf the ```help```
         • Tstd: Scalar value for the standard test conditions
           Temperature
         • Gstd: Scalar value for the standard test conditions Irradiance
+        • furthest_N: If this value is 0 all esp data is used. If this 
+          value is a positive integer, we will use furthest point 
+          sampling in G-T space to reduce the number of datapoints used 
+          for fitting. This ensures the full range of irradiance and 
+          temperature is used but the number of used data points is 
+          limited to a maximum of furthest_N.			
      Output:
         • esp_std: Parameters at standard test conditions
         • alpha: IEC60891 alpha
@@ -282,12 +288,12 @@ In octave the routine secription is built in and accessable uwinf the ```help```
         
 #### pvcraze_fit_IEC60891_v3
 	 [esp_std, alpha, beta, B1, B2, Rs, kappa] = pvcraze_fit_IEC60891_v3 
-	 (esp, T, G, Tstd, Gstd)
+	 (esp, T, G, Tstd, Gstd [,furthest_N])
 	 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits
 	 IEC60891 translation coefficients and determines standard test
 	 condition curve parameters to best describe provided temperature
 	 and irradiance dependent curve parameters Uses the IEC60891 version
-	 3 (2021)
+	 3 (2021). 
 
      Input:
         • esp: array with extended solar cell parameters, one row
@@ -298,6 +304,12 @@ In octave the routine secription is built in and accessable uwinf the ```help```
         • Tstd: Scalar value for the standard test conditions
           Temperature
         • Gstd: Scalar value for the standard test conditions Irradiance
+        • furthest_N: If this value is 0 all esp data is used. If this 
+          value is a positive integer, we will use furthest point 
+          sampling in G-T space to reduce the number of datapoints used 
+          for fitting. This ensures the full range of irradiance and 
+          temperature is used but the number of used data points is 
+          limited to a maximum of furthest_N.			
      Output:
         • esp_std: Parameters at standard test conditions
         • alpha: IEC60891 alpha
@@ -360,7 +372,72 @@ In octave the routine secription is built in and accessable uwinf the ```help```
         • esp: Array with translated extended parameters.  The
           length of the array is the maximum of the length of the input
           (T1/G1 or G2/T2)
-          
+ 
+#### pvcraze_fit_diode_GT
+	 [modelpar, alpha, Ea] = pvcraze_fit_diode_GT 
+	 (esp, T, G, Tstd, Gstd [, unit,furthest_N])
+	 pvcraze_fit_diode_GT is part of the PV-CRAZE package and fits
+	 a temperature and irradiance dependent one diode model. The 
+	 result is a set of model parameters at the given standard 
+	 irradiance and temperature conditions. In addition the temperature 
+	 coefficient of the short circuit current as well as the activation 
+	 energy of the saturation current are returned. These values may be 
+	 used to translate the standard modelpar parameters to a given 
+	 temperature and irradiance condition. In Octave, the last two 
+	 optional arguments are, as an exception to the general rule, not 
+	 passed as key value pairs. As the unit variable has few valid 
+	 string values and furthest_N is an integer, the meaning of the 
+	 last two optional arguments is inferred from its contents. This 
+	 does not affect the python interface.
+
+     Input:
+        • esp: array with extended solar cell parameters, one row
+          per conditions
+        • T: Array with temperatures, one temperature per row in
+          esp
+        • G: Array with irradiances, one irradiance per row in esp
+        • Tstd: Scalar value for the standard test conditions
+          Temperature
+        • Gstd: Scalar value for the standard test conditions Irradiance        
+        • unit: Temperature unit string. May have the values:
+			- "C" or "Celcius"  : Temperature is in Celcius
+			- "K" of "Kelvin"   : Temperature is in Kelvin
+        • furthest_N: If this value is 0 all esp data is used. If this 
+          value is a positive integer, we will use furthest point 
+          sampling in G-T space to reduce the number of datapoints used 
+          for fitting. This ensures the full range of irradiance and 
+          temperature is used but the number of used data points is 
+          limited to a maximum of furthest_N.			
+     Output:
+        • modelpar: Diode model parameters at standard test conditions
+        • alpha: Temperature coefficient for the photo-current
+        • Ea: Activation energy of the saturation current.
+        
+#### pvcraze_translate_diode_GT
+	 [modelpar] = pvcraze_translate_diode_GT 
+	 (modelpar, Tstd, Gstd, T, G alpha, Ea [, unit])
+	 pvcraze_translate_diode_GT is part of the PV-CRAZE package and 
+	 translates a set of diode model parameters to a different 
+	 temperature and irradiance, given a temperature coefficient for 
+	 the photo-current and an activation energy for the saturation 
+	 current. In Octave, the last optional argument is, as an exception 
+	 to the general rule, not passed as a key value pair. This does not 
+	 affect the python interface.
+
+     Input:
+        • modelpar: Diode model parameters at standard test conditions
+        • Tstd: Scalar value for the standard test conditions
+          Temperature
+        • Gstd: Scalar value for the standard test conditions Irradiance    
+        • T: Array with temperatures
+        • G: Array with irradiances, one irradiance per temperature value  
+        • unit: Temperature unit string. May have the values:
+			- "C" or "Celcius"  : Temperature is in Celcius
+			- "K" of "Kelvin"   : Temperature is in Kelvin
+     Output:
+        • modelpar: Diode model parameters at the given temperature and 
+          irradiance conditions
+             
 #### pvcraze_lookupmodel
      Mid = pvcraze_lookupmodel (modelname)
      pvcraze_lookupmodel searches for the model id corresponding to

@@ -1270,7 +1270,7 @@ void MedianDiode(curvepars *P, double *G, double *T, int N,
  * Voc0  = Voc at G0,T0 (better parameter to optimize than I0)
  * Iph0  = Iph at G0, T0 
  * NnkT0 = thermal voltage prefactor at T0
- * alpha = temp coeff Isc
+ * alpha = temp coeff Isc: Isc = Isc0 [1 + α(T2-T1)] G / G0
  * Rs    = series resistance
  * Gsh   = shunt conductance (better parameter to optimize than Rsh)
  * Ea    = activation energy (Eg/n) 
@@ -1330,7 +1330,7 @@ diodepars DiodeParsTranslate(double alpha, double Ea, double I00, double G0, dou
 	double kTT0, TT;
 	diodepars Po;
 	Po=*P;
-	Po.Iph=P->Iph*(1-alpha*(T-T0))*G/G0;
+	Po.Iph=P->Iph*(1+alpha*(T-T0))*G/G0;
 	kTT0=K_B*T*T0;
 	TT=T/T0;
 	Po.I0=I00*TT*TT*TT*exp(Ea*(T-T0)/kTT0);

@@ -459,28 +459,22 @@ static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObj
 	for (i=0; i<S.L.N; i++)
 	{
 		genpars=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
-		PyList_SetItem(genlist, i, (PyObject *)genpars);		
-		
 		fiterr=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
+			
+		for (k=0; k<n; k++)
+		{	
+			// model parameters
+			PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, k, 0), PyFloat_FromDouble((double)P[k].P[i].TYPE));
+			for(j=0; j<10; j++)
+				PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, k, j+1), PyFloat_FromDouble(P[k].P[i].pars[j]));	
+			// fit error	
+			PyArray_SETITEM(fiterr, PyArray_GETPTR1(fiterr, k), PyFloat_FromDouble(P[k].E[i]));		
+		}  
+		
+		PyList_SetItem(genlist, i, (PyObject *)genpars);			
 		PyList_SetItem(fiterrlist, i, (PyObject *)fiterr);
 	}
 	
-	for (i=0; i<n; i++)
-	{		
-		for (k=0;k<P[i].N;k++)
-		{
-			curvepars solpars;
-			// fetch next model parameters
-			genpars=(PyArrayObject *) PyList_GetItem(genlist, (Py_ssize_t)k);	
-			fiterr=(PyArrayObject *) PyList_GetItem(fiterrlist, (Py_ssize_t)k);			
-			// model parameters
-			PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, i, 0), PyFloat_FromDouble((double)P[i].P[k].TYPE));
-			for(j=0; j<10; j++)
-				PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, i, j+1), PyFloat_FromDouble(P[i].P[k].pars[j]));	
-			// fit error	
-			PyArray_SETITEM(fiterr, PyArray_GETPTR1(fiterr, i), PyFloat_FromDouble(P[i].E[k]));		
-		}  
-	}
 
 	for(i=0; i<n; i++)
 		pv_craze_freeprop(&P[i]);
@@ -488,7 +482,7 @@ static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObj
 	free(P);
 	free(pars);
 
-	return Py_BuildValue("{s:O,s:O,s:O}", "modelpar", genlist,"err", fiterrlist);
+	return Py_BuildValue("{s:O,s:O}", "modelpar", genlist,"err", fiterrlist);
 }
 
 

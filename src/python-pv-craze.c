@@ -98,7 +98,20 @@ static struct PyModuleDef python_pvcraze = {
 	pv_craze_methods
 };
 
-
+int IsDoubleArray(PyArrayObject *Array)
+{
+	int typ;
+	if (!PyObject_IsInstance((PyObject *) Array, (PyObject *)&PyArray_Type))
+		return 0;
+	typ=PyArray_TYPE(Array);
+	switch(typ)
+	{
+		case NPY_DOUBLE:
+			return 1;
+		default:
+			return 0;
+	}
+}
 
 PyMODINIT_FUNC PyInit_pvcraze(void){
 	PyObject *module = PyModule_Create(&python_pvcraze);
@@ -238,7 +251,7 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 		return NULL;
 	if(NULL==py_curveList) 
 		return NULL;	
-
+		
 	S=pv_craze_initsettings();
 	if (eps>0)
 	{
@@ -258,8 +271,7 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 	if (am>0)
 		S.analyze.am=(char)am;
 	if (resample>0)
-		S.analyze.Resample=resample;
-		
+		S.analyze.Resample=resample;		
 	// parse optional models
 	if (StringList)
 	{	
@@ -281,6 +293,11 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 	for(j=0; j<N; j++)
 	{
 		py_curve=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)j);
+		if (!IsDoubleArray(py_curve))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze expects a list of numpy arrays with double type data");
+			return NULL;
+		}
 		n=py_curve->dimensions[0];
 		m=py_curve->dimensions[1];
 		if (m!=2)
@@ -424,9 +441,14 @@ static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObj
 	// prepare the curves
 	n=epars->dimensions[0];
 	m=epars->dimensions[1];
+	if (!IsDoubleArray(epars))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelfit expects an esp array of double type");
+		return NULL;
+	}
 	if (m!=10)
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: wrong epar array format, expect an n x 10 array");
+		PyErr_SetString(PyExc_ValueError, "Error: wrong esp array format, expect an n x 10 array");
 		return NULL;
 	}
 	if ((pars=malloc(n*sizeof(curvepars)))==NULL)
@@ -540,6 +562,11 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 		// I first cast it to an array object and then check whether it is one
 		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
+		if (!IsDoubleArray(py_genpars))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_curvemodel expects an model parameter arrays of double type");
+			return NULL;
+		}
 		if (py_genpars==NULL)
 		{
 			free(genpars_in);
@@ -664,6 +691,11 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 		// I first cast it to an array object and then check whether it is one
 		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
+		if (!IsDoubleArray(py_genpars))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelpars expects an model parameter arrays of double type");
+			return NULL;
+		}
 		if (py_genpars==NULL)
 		{
 			return NULL;	
@@ -819,6 +851,11 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	for(i=0; i<Nm; i++)
 	{
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)i);
+		if (!IsDoubleArray(py_genpars))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelerror expects an model parameter arrays of double type");
+			return NULL;
+		}
 		if (py_genpars==NULL)
 		{
 			for(i=0; i<Niv; i++)
@@ -935,6 +972,31 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 	if(NULL==T2) 
 		return NULL;
 		
+	if (!IsDoubleArray(epars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G2))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T2))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1084,6 +1146,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	if (fN<0)
 		fN=0;
 		
+	if (!IsDoubleArray(epars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		return NULL;
+	}
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1092,11 +1159,21 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		return NULL;	
 	}
 	N=n;
+	if (!IsDoubleArray(G1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
 	n=G1->dimensions[0];
 	if (n!=N)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: G1 input array must be of length n (number of rows in epar input array)");
 		return NULL;	
+	}
+	if (!IsDoubleArray(T1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
 	}
 	n=T1->dimensions[0];
 	if (n!=N)
@@ -1204,7 +1281,32 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		return NULL;
 	if(NULL==T2) 
 		return NULL;
-		
+	
+	if (!IsDoubleArray(epars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G2))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T2))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1351,6 +1453,22 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		return NULL;
 	if (fN<0)
 		fN=0;	
+		
+	if (!IsDoubleArray(epars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1503,7 +1621,22 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		PyErr_SetString(PyExc_ValueError, "Error: irradiance value out of range");
 		return NULL;
 	}
-		
+	
+	if (!IsDoubleArray(mpars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects a modelpar array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects a temperature array of double type");
+		return NULL;
+	}
 	n=mpars_in->dimensions[0];
 	if (n!=11)
 	{
@@ -1534,7 +1667,7 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		}
 		in.TYPE=(MODEL_TYPE)a;
 		for(i=0; i<10; i++)
-			in.pars[i]=*(double *)(mpars_in->data+(i+1)*mpars_in->strides[1]);
+			in.pars[i]=*(double *)(mpars_in->data+(i+1)*mpars_in->strides[0]);
 	}
 	
 	if ((_G1=malloc(N*sizeof(double)))==NULL)
@@ -1567,6 +1700,7 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, 0), PyFloat_FromDouble((double)out[i].TYPE));
 		for(j=0; j<10; j++)
 			PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, j+1), PyFloat_FromDouble(out[i].pars[j]));	
+		
 	}
 	free(out);
 	return Py_BuildValue("O", mpars_out);
@@ -1581,7 +1715,7 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	int N, M, n, m, i, fN=0;
 	curvepars *in;
 	generic_pars out;
-	npy_intp ArrayDim[1]={11};
+	npy_intp ArrayDim[1];
 	int vh=0;
 	char unit ='K', *sunit=NULL;
 				
@@ -1631,6 +1765,21 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	if (fN<0)
 		fN=0;	
 	
+	if (!IsDoubleArray(epars_in))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(G1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+		return NULL;
+	}
+	if (!IsDoubleArray(T1))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+		return NULL;
+	}
 	n=epars_in->dimensions[0];
 	m=epars_in->dimensions[1];
 	if (m!=10)
@@ -1692,6 +1841,7 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	
 	
 	//build dictionary with model pars alpha, Ea	
+	ArrayDim[0]=11;
 	mpars_out=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
 	PyArray_SETITEM(mpars_out, PyArray_GETPTR1(mpars_out, 0), PyFloat_FromDouble((double)out.TYPE));
 	for(i=1; i<11; i++)

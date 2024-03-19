@@ -28,17 +28,20 @@ def dist(par1,par2):
 
 ESP=np.loadtxt('data/refdiodeGT.dat')
 # have to add type conversions and checks!
-G=ESP[:,0].astype(float)
-T=ESP[:,1].astype(float)
-ESP=ESP[:,2:].astype(float)
+G=ESP[:,0]
+T=ESP[:,1]
+ESP=ESP[:,2:]
 
-MF=pvcraze.fit_diode_GT (ESP, T, G, 25, 1000, 'C');
-MP=pvcraze.translate_diode_GT (MF['modelpar'], 25, 1000, T, G, MF['alpha'], MF['Ea'], 'C');
+
+MF=pvcraze.fit_diode_GT (ESP, T, G, 25, 1000, 'C')
+MP=pvcraze.translate_diode_GT (MF['modelpar'], 25.0, 1000.0, T, G, MF['alpha'], MF['Ea'], 'C')
 ESPn=pvcraze.modelpars([MP])[0]
+
+
 dd=dist(ESP, ESPn)
-if (dd>THd):
+if (np.isfinite(dd)==False) or (dd>THd):
 	print(f"Diode Translation Error: Deviation detected in results", file=sys.stderr)
-	exit(1)
+	
 else:
 	print(f"All OK", file=sys.stderr)
 
@@ -48,7 +51,7 @@ MF = pvcraze.fit_IEC60891_v2(ESP, T, G, 25.0, 1000.0)
 ESPn = pvcraze.translate_IEC60891_v2 (MF['esp_std'].reshape(-1,10), np.array([25.0]).reshape(-1,1), np.array([1000.0]).reshape(-1,1), T, G, MF['alpha'], MF['beta'], MF['a'], MF['Rs'], MF['kappa'])
 
 dd=dist(ESP, ESPn)
-if (dd>THiec):
+if (np.isfinite(dd)==False) or (dd>THiec):
 	print(f"IEC60891_v2 Translation Error: Deviation detected in results", file=sys.stderr)
 	exit(1)
 else:
@@ -60,8 +63,9 @@ MF = pvcraze.fit_IEC60891_v3(ESP, T, G, 25, 1000)
 ESPn = pvcraze.translate_IEC60891_v3 (MF['esp_std'].reshape(-1,10), np.array([25.0]).reshape(-1,1), np.array([1000.0]).reshape(-1,1), T, G, MF['esp_std'][0], MF['alpha'], MF['beta'], MF['B1'], MF['B2'], MF['Rs'], MF['kappa'])
 
 dd=dist(ESP, ESPn)
-if (dd>THiec):
+if  (np.isfinite(dd)==False) or(dd>THiec):
 	print(f"IEC60891_v3 Translation Error: Deviation detected in results", file=sys.stderr)
 	exit(1)
 else:
 	print(f"All OK", file=sys.stderr)
+

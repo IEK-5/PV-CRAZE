@@ -1395,7 +1395,7 @@ generic_pars DiodeGTFit(curvepars *C, double *G, double *T, int N,
 	ARG.N=N;
 	ARG.S=S;
 	
-	InitParameters(ARG.P,ARG.G,ARG.T,ARG.N,ARG.S, xmin, &ARG.T0, &ARG.G0); // flag T conversion
+	InitParameters(ARG.P,ARG.G,ARG.T,ARG.N,ARG.S, xmin, &ARG.T0, &ARG.G0); 
 	if (xmin[0]<0)
 	{
 		generic_pars O={0};
@@ -1443,7 +1443,7 @@ generic_pars DiodeGTTranslate(generic_pars P0, double alpha, double Ea,
 	double kTT0,TT;
 	
 	D=Generic2DiodePars(P0, S);
-
+	
 	// translate D	
 	D.Iph=D.Iph*(1+alpha*(T-T0))*G/G0;
 	kTT0=K_B*T*T0;

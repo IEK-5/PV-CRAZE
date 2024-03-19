@@ -16,18 +16,17 @@ Rs=0.1
 Rsh=700
 Ea=0.8
 alpha=1e-3
-stdmodelpar=np.array([pvcraze.lookupmodel('Diode'), I0, nkT, Iph, Rs, Rsh,0,0,0,0,0]).reshape(1,-1)
+stdmodelpar=np.array([pvcraze.lookupmodel('Diode'), I0, nkT, Iph, Rs, Rsh,0,0,0,0,0])
 # irradiance/temperature grid
-G=np.array([100,200,400,800,1000]);
-T=np.array([0,10,20,40,60,80]);
-
+G=np.array([100.0,200.0,400.0,800.0,1000.0]);
+T=np.array([0.0,10.0,20.0,40.0,60.0,80.0]);
+print(stdmodelpar)
 # make flat list of G,T combinations
 R=np.meshgrid(T,G);
-G=R[1].reshape(-1,1);
-T=R[0].reshape(-1,1);
+T=R[0].reshape(-1);
+G=R[1].reshape(-1);
 
-
-MP=pvcraze.translate_diode_GT (stdmodelpar, 25, 1000, D[:,1], D[:,0], alpha, Ea, 'C');
+MP=pvcraze.translate_diode_GT (stdmodelpar, 25, 1000, T, G, alpha, Ea, 'C');
 mesp=pvcraze.modelpars([MP])[0]
 
 E=mesp-D[:,2:]

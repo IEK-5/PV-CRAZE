@@ -1298,7 +1298,8 @@ Output:\n\
 		Cin[i].Gsc=Pin(i,8);
 		Cin[i].Roc=Pin(i,9);	
 		TT[i]=T(i,0);	
-		GG[i]=G(i,0);			
+		GG[i]=G(i,0);
+	
 	}
 	
 	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN);

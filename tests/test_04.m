@@ -16,8 +16,9 @@ TH    =1e-2;
 
 for i=1:length(models)
 	% model fit
-	[mpar] = pvcraze_modelfit (ESP, sprintf("%s",models{i}));
+	mpar = pvcraze_modelfit (ESP, sprintf("%s",models{i}));
 	% convert to esp (some model parameters may change alot without affecting the curve so much)
+	% do not trust the modelfit error, pass it through modelpars and an independent reference
 	mpar=cell2mat(mpar);
 	mesp=cell2mat(pvcraze_modelpars(num2cell(mpar,2)));
 	

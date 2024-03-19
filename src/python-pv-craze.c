@@ -910,10 +910,10 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 	
 	static char *kwlist[] = {
 		"esp",
-		"G1",
 		"T1",
-		"G2",
+		"G1",
 		"T2",
+		"G2",
 		"alpha",
 		"beta",
 		"a",
@@ -922,7 +922,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!O!O!ddddd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &G2,&PyArray_Type, &T2, &alpha, &beta, &a, &Rs, &kappa)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!O!O!ddddd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1,&PyArray_Type, &T2,&PyArray_Type, &G2, &alpha, &beta, &a, &Rs, &kappa)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1056,7 +1056,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 {
 	PyArrayObject *epars_in, *epars_out;
 	PyArrayObject *G1, *T1;
-	double alpha=0, beta=0, a=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
+	double alpha=1, beta=1, a=1, Rs=1, kappa=1, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
 	int N, M, n, m, i, j, fN=0;
 	curvepars *in, out;
@@ -1064,15 +1064,15 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	
 	static char *kwlist[] = {
 		"esp",
-		"G",
 		"T",
-		"Gstd",
+		"G",
 		"Tstd",
+		"Gstd",
 		"furthest_N",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd, &fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1, &Tstd, &Gstd, &fN)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1109,6 +1109,19 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
 	for(i=0; i<N; i++)
 	{
 		in[i].Voc=*(double *)(epars_in->data+i*epars_in->strides[0]+0*epars_in->strides[1]);
@@ -1121,24 +1134,9 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		in[i].Iqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+7*epars_in->strides[1]);
 		in[i].Gsc=*(double *)(epars_in->data+i*epars_in->strides[0]+8*epars_in->strides[1]);
 		in[i].Roc=*(double *)(epars_in->data+i*epars_in->strides[0]+9*epars_in->strides[1]);
-	}
-	if ((_G1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
-	if ((_T1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		free(_G1);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
+	}
 	out=pv_craze_fit_IEC60891_v2(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &a, &Rs, &kappa, fN);
 	/* clean up*/
 	free(in);
@@ -1178,14 +1176,15 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 	
 	static char *kwlist[] = {
 		"esp",
-		"G1",
 		"T1",
-		"G2",
+		"G1",
 		"T2",
+		"G2",
 		"Vocstd",
 		"alpha",
 		"beta",
-		"a",
+		"B1",
+		"B2",
 		"Rs",
 		"kappa",
 		"Gstd",
@@ -1193,7 +1192,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!O!O!dddddd|dd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &G2,&PyArray_Type, &T2, &Vocstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, &Gstd, &Tstd)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!O!O!dddddd|dd",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1,&PyArray_Type, &T2,&PyArray_Type, &G2, &Vocstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, &Gstd, &Tstd)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1238,6 +1237,19 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
 	for(i=0; i<N; i++)
 	{
 		in[i].Voc=*(double *)(epars_in->data+i*epars_in->strides[0]+0*epars_in->strides[1]);
@@ -1250,24 +1262,9 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		in[i].Iqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+7*epars_in->strides[1]);
 		in[i].Gsc=*(double *)(epars_in->data+i*epars_in->strides[0]+8*epars_in->strides[1]);
 		in[i].Roc=*(double *)(epars_in->data+i*epars_in->strides[0]+9*epars_in->strides[1]);
-	}
-	if ((_G1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
-	if ((_T1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		free(_G1);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
+	}
 		
 	if ((_G2=malloc(M*sizeof(double)))==NULL)
 	{
@@ -1277,9 +1274,6 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
-	for(i=0; i<M; i++)
-		_G2[i]=*(double *)(G2->data+i*G2->strides[0]);
-		
 	if ((_T2=malloc(M*sizeof(double)))==NULL)
 	{
 		free(in);
@@ -1290,7 +1284,10 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		return NULL;	
 	}
 	for(i=0; i<M; i++)
+	{
+		_G2[i]=*(double *)(G2->data+i*G2->strides[0]);
 		_T2[i]=*(double *)(T2->data+i*T2->strides[0]);
+	}
 	out=pv_craze_translate_IEC60891_v3(in, _G1, _T1, N, _G2, _T2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa);
 	/* clean up*/
 	free(in);
@@ -1336,15 +1333,15 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	
 	static char *kwlist[] = {
 		"esp",
-		"G",
 		"T",
-		"Gstd",
+		"G",
 		"Tstd",
+		"Gstd",
 		"furthest_N",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd,&fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in, &PyArray_Type, &T1, &PyArray_Type, &G1, &Tstd, &Gstd,&fN)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1379,6 +1376,19 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
 	for(i=0; i<N; i++)
 	{
 		in[i].Voc=*(double *)(epars_in->data+i*epars_in->strides[0]+0*epars_in->strides[1]);
@@ -1391,25 +1401,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		in[i].Iqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+7*epars_in->strides[1]);
 		in[i].Gsc=*(double *)(epars_in->data+i*epars_in->strides[0]+8*epars_in->strides[1]);
 		in[i].Roc=*(double *)(epars_in->data+i*epars_in->strides[0]+9*epars_in->strides[1]);
-	}
-	if ((_G1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
-	if ((_T1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		free(_G1);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
-	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &B1, &B2, &Rs, &kappa,fN);
+		//printf("%d %e %e %e %e %e %e %e %e %e %e %e %e\n", i, _G1[i], _T1[i], in[i].Voc,in[i].Isc,in[i].Vmpp,in[i].Impp,in[i].Vqmp1,in[i].Iqmp1,in[i].Vqmp2,in[i].Iqmp2,in[i].Gsc,in[i].Roc);
+	}
+	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, fN);
 	/* clean up*/
 	free(in);
 	free(_G1);	
@@ -1436,13 +1432,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		"Rs", Rs, "kappa", kappa);
 } 
 
-
-
 static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	PyArrayObject *mpars_in, *mpars_out;
 	PyArrayObject *G, *T;
-	double Vocstd=0, Tstd=-300, Gstd=0, alpha=0, Ea=0;
+	double Vocstd=0, Tstd=-300, Gstd=-1, alpha=0, Ea=0;
 	double *_G1, *_T1;
 	int N, n, m, i, j;
 	generic_pars in, *out;
@@ -1469,10 +1463,6 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		return NULL;
 	if(NULL==T) 
 		return NULL;
-	if (Tstd<=-300)
-		return NULL;
-	if (Gstd<=0)
-		return NULL;
 	if (sunit)
 	{
 		int cc=0;
@@ -1493,10 +1483,29 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 			}
 		}
 	}
+	switch(unit)
+	{
+		case 'C':					
+			if (Tstd<=-273.15)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: temperature value out of range");
+				return NULL;
+			}
+		default:		
+			if (Tstd<=0)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: temperature value out of range");
+				return NULL;
+			}
+	}
+	if (Gstd<=0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: irradiance value out of range");
+		return NULL;
+	}
 		
 	n=mpars_in->dimensions[0];
-	m=mpars_in->dimensions[1];
-	if ((m!=11)||(n!=1))
+	if (n!=11)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: expect an 1x11 modelpar input array");
 		return NULL;	
@@ -1533,8 +1542,6 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
-	for(i=0; i<N; i++)
-		_G1[i]=*(double *)(G->data+i*G->strides[0]);
 	if ((_T1=malloc(N*sizeof(double)))==NULL)
 	{
 		free(_G1);
@@ -1542,8 +1549,10 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		return NULL;	
 	}
 	for(i=0; i<N; i++)
+	{
+		_G1[i]=*(double *)(G->data+i*G->strides[0]);
 		_T1[i]=*(double *)(T->data+i*T->strides[0]);
-		
+	}
 	out=pv_craze_translate_diode_GT(in,Gstd,Tstd, _G1, _T1, N, alpha, Ea, unit);
 	free(_G1);
 	free(_T1);
@@ -1579,21 +1588,19 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 			
 	char * str; 
 	MODEL_TYPE T;
-	if(!PyArg_ParseTuple(args, "s", &str))
-		return NULL;
 	
 	static char *kwlist[] = {
 		"esp",
-		"G",
 		"T",
-		"Gstd",
+		"G",
 		"Tstd",
+		"Gstd",
 		"Tunit",
 		"furthest_N",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddsi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &G1,&PyArray_Type, &T1,&PyArray_Type, &Gstd, &Tstd,&sunit,&fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddsi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1,&Tstd, &Gstd,&sunit,&fN)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1649,6 +1656,19 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
+	if ((_G1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
+	if ((_T1=malloc(N*sizeof(double)))==NULL)
+	{
+		free(in);
+		free(_G1);
+		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
+		return NULL;	
+	}
 	for(i=0; i<N; i++)
 	{
 		in[i].Voc=*(double *)(epars_in->data+i*epars_in->strides[0]+0*epars_in->strides[1]);
@@ -1661,24 +1681,9 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 		in[i].Iqmp2=*(double *)(epars_in->data+i*epars_in->strides[0]+7*epars_in->strides[1]);
 		in[i].Gsc=*(double *)(epars_in->data+i*epars_in->strides[0]+8*epars_in->strides[1]);
 		in[i].Roc=*(double *)(epars_in->data+i*epars_in->strides[0]+9*epars_in->strides[1]);
-	}
-	if ((_G1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
-	if ((_T1=malloc(N*sizeof(double)))==NULL)
-	{
-		free(in);
-		free(_G1);
-		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
-		return NULL;	
-	}
-	for(i=0; i<N; i++)
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
+	}
 	out=pv_craze_fit_diode_GT(in, _G1, _T1, N, &alpha, &Ea,Tstd,Gstd, unit,fN);
 	/* clean up*/
 	free(in);

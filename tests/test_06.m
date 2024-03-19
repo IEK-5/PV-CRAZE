@@ -32,7 +32,7 @@ function d=dist(par1, par2)
 endfunction
 
 % fit the ESP's
-[modelstd, alpha, Ea] = pvcraze_fit_diode_GT(ESP, T, G, 25,1000, 'C')
+[modelstd, alpha, Ea] = pvcraze_fit_diode_GT(ESP, T, G, 25,1000, 'C');
 
 % translate again
 modelpar = pvcraze_translate_diode_GT (modelstd, 25, 1000, T, G, alpha, Ea, 'C');

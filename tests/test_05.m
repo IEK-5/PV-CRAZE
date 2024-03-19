@@ -6,20 +6,6 @@ TH=1e-2;
 pvcraze_verbose_setreport(false)
 
 makeref=true; % rebase the reference on the current state of the library
-function IV=ReadIV(fn)
-	f=fopen(fn,'r');
-	IV={};
-	while(!feof(f))
-		l=fgets(f);
-		if (l(1)!='#')		
-			[v,c]=sscanf(l,"%e,",Inf);
-			n=v(1);
-			v=v(2:end);
-			iv=reshape(v,n,2);
-			IV=[IV,iv];
-		endif
-	endwhile
-endfunction
 
 ESP=load('data/refdiodeGT.dat');
 ESP=ESP(:,3:end);

@@ -37,4 +37,10 @@ typedef struct {
 	MODEL_LIST L;
 } ProcessSettings;
 
+typedef struct {
+	int FLAG;
+	char *message;
+	int ERR;
+} AnalyzeFlag;
+
 //END-HEADER-EXPORT mark the end of a block that describes the C api

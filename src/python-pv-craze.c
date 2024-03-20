@@ -32,6 +32,8 @@
  * utilities 
  * **************************************************/
 static PyObject *py_pv_craze_LookupModel(PyObject *self, PyObject *args);
+static PyObject *py_pv_craze_ReverseLookup(PyObject *self, PyObject *args);
+static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs);
 static PyObject *py_pv_craze_quiet(PyObject *self, PyObject *noargs);
 static PyObject *py_pv_craze_verbose(PyObject *self, PyObject *noargs);
 static PyObject *py_pv_craze_verbose_set_report(PyObject *self, PyObject *args);
@@ -78,6 +80,8 @@ static PyMethodDef pv_craze_methods[] = {
 	{"curvemodel", 				py_pv_craze_curvemodel				, METH_VARARGS | METH_KEYWORDS	,"Reconstruct IV from curve model parameters"},
 	{"modelpars", 				py_pv_craze_modelpars				, METH_VARARGS | METH_KEYWORDS	,"Compute extended solar cell parameters from generic parameters"},
 	{"lookupmodel", 			py_pv_craze_LookupModel				, METH_VARARGS 					,"Returns a model ID based on a model name"},
+	{"reverselookup", 			py_pv_craze_ReverseLookup			, METH_VARARGS 					,"Returns a model name based on a model ID"},
+	{"flagtable",  				py_pv_craze_FlagTable				, METH_NOARGS					,"generate a flag table for the used pv-craze library"},
 	{"modelfit", 				py_pv_craze_modelfit_list			, METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
 	{"modelerror", 				py_pv_craze_error					, METH_VARARGS | METH_KEYWORDS	,"Compute RMS distance between IV-curve and model"},
 //    {"pv_craze_errorcurve", py_pv_craze_errorcurve, METH_VARARGS,""},
@@ -200,6 +204,55 @@ static PyObject *py_pv_craze_LookupModel(PyObject *self, PyObject *args)
 		return NULL;
 	}
 	return PyLong_FromLong((long)T);
+}
+
+static PyObject *py_pv_craze_ReverseLookup(PyObject *self, PyObject *args)
+{
+	char * str; 
+	int a=-1;
+	if(!PyArg_ParseTuple(args, "i", &a))
+		return NULL;
+	if(a<0)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: model does not exist or no valid argument");
+		return NULL;
+	}
+	str=pv_craze_reverselookup((MODEL_TYPE)a);
+	if (str==NULL)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: model does not exist");
+		return NULL;
+	}
+	return Py_BuildValue("z", str);
+}
+
+static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
+{
+	AnalyzeFlag *T;
+	int i,N;
+	PyObject *messages;
+	PyArrayObject *flags;
+	PyArrayObject *err;
+	npy_intp ArrayDim[1]={0};
+	
+	T=pv_craze_flagtable(&N);
+	if (!T)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: could not generate a flag table, pv-crze appears to be broken!");
+		return NULL;
+	}
+	ArrayDim[0]=N;
+	flags=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_INT);
+	err=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_BOOL);
+	messages=PyList_New(N);
+	
+	for (i=0;i<N;i++)
+	{
+		PyArray_SETITEM(flags, PyArray_GETPTR1(flags, i), PyLong_FromLong((long)T[i].FLAG));
+		PyArray_SETITEM(err, PyArray_GETPTR1(err, i), PyBool_FromLong((long)T[i].ERR));
+		PyList_SetItem(messages, i, PyUnicode_FromString(T[i].message));
+	}
+	return Py_BuildValue("{s:O,s:O,s:O}", "flags", flags,"messages", messages,"err",err);
 }
 
 npy_intp PARLEN=11;

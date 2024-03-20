@@ -136,6 +136,8 @@ and in python
     
 In octave the routine decription is built in and accessable using the ```help``` command, e.g. ```help pvcraze_analyze```.
 
+You may look at the scripts in the test directory for examples how to use both the octave and python interfaces.
+
 ### pvcraze_analyze:
      [esp,flags,modelpar,err] = pvcraze_analyze (IV,[optional-parameters])
      pvcraze_analyze reads solar cell IV characteristics, determines an
@@ -447,7 +449,32 @@ In octave the routine decription is built in and accessable using the ```help```
         • modelname: Name of the model (string), e.g. PV-Bezier or Diode
      Output:
         • Mid: Model ID
+        
+#### pvcraze_reverselookup
+     modelname = pvcraze_lookupmodel (Mid)
+     pvcraze_reverselookup searches for the model name corresponding to
+     the model id.
+
+     Input:
+        • Mid: id number of the model, e.g. 0
+     Output:
+        • modelname: Name of the model (string), e.g. PV-Bezier or Diode
    
+#### pvcraze_flagtable
+     [flags,messages,err] = pvcraze_flagtable ()
+     pvcraze_flagtable generates a table of principle flags,
+     corresponding messages, and a boolean value whether the flag 
+     constitutes an error. Note that this table may change between 
+     pvcraze versions so you may want to store this data together with 
+     analysis results.
+
+     Input: (none)
+     Output:
+        • flags: Principle flags (powers of two, actual flags may be 
+                 the sum of several principle flags)
+        • messages: messages corresponding to principle flags 
+        • err: some messages are merely warnings and no errors. Err is 
+               a boolean array with True for error flags.
   
 #### pvcraze_quiet
      pvcraze_quiet()
@@ -474,9 +501,35 @@ In octave the routine decription is built in and accessable using the ```help```
      Enable/Disable header output. If set-value evaluates to true a header is displayed.
 	
 ## C
-PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave and python libraries build). The pvcraze library provides the following symbols:
+PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave and python libraries build). Installing the library also installs the library
+header, "pvcraze.h". This single header file contains all necessary data structures and
+declarations of the library symbols. 
 
-pv_craze_addmodeltosettings
+The most important data structures of the library are:
+
+
+    typedef struct {
+	    double Voc, Isc;     // sc oc
+	    double Vmpp, Impp;   // mpp
+	    double Vqmp1, Iqmp1; // quasi mpp-
+	    double Vqmp2, Iqmp2; // quasi mpp+
+	    double Gsc, Roc;
+    } curvepars;
+
+The ```curvepars``` data structure contains the extended solar cell parameters. Apart for esp's, pv-craze also deals with various other models. These models are handled with a "generic" model parameter struct. It is defined as:
+
+     typedef struct {
+	     double pars[10];
+     	 MODEL_TYPE TYPE;
+     } generic_pars;
+
+The ```generic_pars``` data structure contains a fixed size array of 10 parameters. The meaning of the parameters, however, depends on the ```MODEL_TYPE```. The ```MODEL_TYPE``` is an enumerator type and is automatically generated during compilation and depends on the models which are registered during compilation. This automated registering of models it easier to add new models but may have as a side effect that a new version of the library may change the value of the ```MODEL_TYPE``` refering to a specific model. Hence, you should not trust that a specific value refers to a specific model type. A reliable method to find the ```MODEL_TYPE``` value for a model is to use the ```pv_craze_lookupmodel``` routine:
+
+    MODEL_TYPE pv_craze_lookupmodel(char *word);
+    
+This routine takes an identifyer string (e.g. "Diode") and returns the corresponding ```MODEL_TYPE```. 
+#### pv_craze_addmodeltosettings
+	 
 pv_craze_analyze
 pv_craze_analyze_list
 pv_craze_curvemodel

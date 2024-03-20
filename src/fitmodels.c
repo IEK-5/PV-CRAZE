@@ -103,6 +103,17 @@ MODEL_TYPE LookupModel(char *word)
 	return M_NONE;
 }
 
+char *pv_craze_reverselookup(MODEL_TYPE T)
+{
+	int i=0;
+	while (MODEL_TABLE[i].TYPE!=M_NONE)
+	{
+		if (MODEL_TABLE[i].TYPE==T)
+			return MODEL_TABLE[i].name;
+		i++;
+	}
+	return NULL;
+}
 int IsInStr(char c, char *string)
 {
 	char *p;

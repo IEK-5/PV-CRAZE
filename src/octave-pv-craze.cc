@@ -54,6 +54,8 @@ typedef enum {IFILTER,SFILTER, MPPMETHOD, MPPDV, MPPDI, SCDV, OCDI, MODEL, RESAM
 // PKG_ADD: autoload("pvcraze_verbose_settiming","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_verbose_sethead","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_lookupmodel","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_reverselookup","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_flagtable","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_analyze","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_modelfit","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_curvemodel","pv_craze.oct");
@@ -188,6 +190,110 @@ Output:\n\
 	
 }
 
+DEFUN_DLD (pvcraze_reverselookup, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {@var{model-name} =} pvcraze_lookupmodel (@var{Mid})\n\
+pvcraze_reverselookup searches for the model-name corresponding to a model id.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{Mid}: Model ID\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{model-name}: Name of the model, e.g. PV-Bezier or Diode\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	MODEL_TYPE T;
+	octave_value_list mid;
+	charMatrix oname;
+  	char *name;
+  	int i,n;
+  	if (nargin < 1)
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	T=(MODEL_TYPE)args(0).int_value();
+	name=pv_craze_reverselookup(T);
+	if (name==NULL)
+	{
+		fprintf(stderr, "Error: model with id %d does not exist\n", (int)T);
+		return octave_value_list ();
+	}
+		
+	n=strlen(name);
+	oname=charMatrix(1,(octave_idx_type)n);
+	for (i=0;i<n;i++)
+		oname(0,i)=name[i];
+	
+	return octave_value(oname);
+	
+}
+
+DEFUN_DLD (pvcraze_flagtable, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{flags},@var{messages}, @var{err}]=} pvcraze_flagtable ( )\n\
+pvcraze_flagtable generates a table of flag codes and messages for the\n\
+installed pv-craze library version.\n\n\
+Input:\n\
+None\n\
+Output:\n\
+@itemize \n\
+@item @var{flags}: array with principle flag values (powers of two, actual flags may be combinations of principle flags)\n\
+@item @var{messages}: Message (array with messages) corresponding to flags\n\
+@item @var{err}: Boolean array whether the flag represents an error\n\
+@end itemize\n\
+@end deftypefn")
+{
+	AnalyzeFlag *T;
+	int i,j,N, n, nm;
+	charMatrix message;
+	int32NDArray FF;
+	boolMatrix err;
+	octave_value_list retval;
+	
+	T=pv_craze_flagtable(&N);
+	if (!T)
+	{
+		fprintf(stderr, "Error: could not generate a flag table, pv-crze appears to be broken!\n");
+		return retval;	
+	}
+	dim_vector dim(N,1);
+	FF=int32NDArray(dim);
+	err=boolMatrix(N,1);
+	nm=0;
+	for (i=0;i<N;i++)
+	{
+		n=strlen(T[i].message);
+		if (n>nm)
+			nm=n;
+	}
+	message=charMatrix(N,nm);
+	
+	
+	for (i=0;i<N;i++)
+	{
+		FF(i)=(int)T[i].FLAG;
+		
+		n=strlen(T[i].message);	
+		for (j=0;j<n;j++)
+			message(i,j)=T[i].message[j];
+		for (;j<nm;j++)
+			message(i,j)='\0';
+		
+		err(i,0)=(bool)T[i].ERR;
+	}
+	free(T);
+	i=0;
+	if (nargout>i)
+		retval(i++)=octave_value(FF);
+	if (nargout>i)
+		retval(i++)=octave_value(message);
+	if (nargout>i) 
+		retval(i++)=octave_value(err);
+	return retval;	
+}
+
 DEFUN_DLD (pvcraze_analyze, args, nargout, "-*- texinfo -*-\n\
 @deftypefn {} {[@var{esp},@var{flags},@var{modelpar}, @var{err}] =} pvcraze_analyze (@var{IV}, [optional-parameters])\n\
 pvcraze_analyze reads solar cell IV characteristics, determines an extended set of solar cell parameters \
@@ -218,7 +324,8 @@ Output:\n\
   	int nargin = args.length ();
 	octave_value_list retval;
 	Cell IV;
-	Matrix iv, EPar, Flags, FErr, PErr;
+	Matrix iv, EPar, FErr, PErr;
+	int32NDArray Flags; 
 	Cell MPar, MEPar;
 	OPT_PARS parse=NONE;
 	ProcessSettings Set;
@@ -333,7 +440,8 @@ Output:\n\
 	
 	
 	EPar=Matrix(Nc,10);
-	Flags=Matrix(Nc,1);
+	dim_vector dim(Nc,1);
+	Flags=int32NDArray(dim);
 	if (Set.L.N)
 	{
 		MPar=Cell(Nc, Set.L.N);
@@ -399,7 +507,7 @@ Output:\n\
 		EPar(i,8)=Prop[i].par.Gsc;
 		EPar(i,9)=Prop[i].par.Roc;
 		
-		Flags(i,0)=(double)Prop[i].A_FLAGS;
+		Flags(i)=Prop[i].A_FLAGS;
 		
 		if (Set.L.N)
 		{			

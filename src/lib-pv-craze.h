@@ -46,6 +46,9 @@ void pv_craze_verbosehead(int set);
 
 
 MODEL_TYPE pv_craze_lookupmodel(char *word);
+char *pv_craze_reverselookup(MODEL_TYPE T);
+AnalyzeFlag *pv_craze_flagtable(int *N);
+
 /* **************************************************
  * curve modeling and analysis routines 
  * **************************************************/

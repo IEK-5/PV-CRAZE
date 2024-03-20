@@ -104,6 +104,8 @@ MODEL_TYPE pv_craze_lookupmodel(char *word)
 {
 	return LookupModel(word);
 }
+
+
 #define LISTBLOCK 16
 int IsInList(FLAGLIST *list, int id)
 {
@@ -362,6 +364,25 @@ void pv_craze_freeprop(CurveProp *P)
 	free(P->P);
 }
 
+AnalyzeFlag *pv_craze_flagtable(int *N)
+{
+	int i;
+	AnalyzeFlag *A;
+	(*N)=0;
+	if((A=Emalloc(NIVF*sizeof(CurveProp)))==NULL)
+	{
+		fprintf(stderr,"INFO: Memory allocation failure in FlagTable, Flag Table cannot be produced\n");
+		return NULL;
+	}
+	(*N)=NIVF;
+	for (i=0;i<NIVF;i++)
+	{
+		A[i].FLAG=FLAG_CODE(i);
+		A[i].message=Fmessage(i);
+		A[i].ERR=(i>=NIVWARN);
+	}
+	return A;
+}
 #define NROWLINE 4
 #define NCOLLINE 4
 

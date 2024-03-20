@@ -74,6 +74,7 @@ curve 			pv_craze_g_distcurve(generic_pars P, curve C);
 generic_pars 	pv_craze_g_fit(MODEL_TYPE T, curvepars par, curve C, double *Efit);
 curvepars 		pv_craze_g_pars(generic_pars);
 int 			pv_craze_numfields(MODEL_TYPE T);
+char 			*pv_craze_reverselookup(MODEL_TYPE T);
 
 //END-HEADER-EXPORT mark the end of a block that describes the C api
 

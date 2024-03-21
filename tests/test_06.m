@@ -1,5 +1,4 @@
 #!/usr/bin/octave
-fn="data/IVs.csv";
 pkg load pv-craze
 THd=2e-2;
 THiec=15e-2;

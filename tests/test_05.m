@@ -1,5 +1,4 @@
 #!/usr/bin/octave
-fn="data/IVs.csv";
 pkg load pv-craze
 TH=1e-2;
 # test pvcraze_curvemodel pvcraze_modelfit pvcraze_modelerror

@@ -41,7 +41,7 @@ ESPn=pvcraze.modelpars([MP])[0]
 dd=dist(ESP, ESPn)
 if (np.isfinite(dd)==False) or (dd>THd):
 	print(f"Diode Translation Error: Deviation detected in results", file=sys.stderr)
-	
+	exit(1)
 else:
 	print(f"All OK", file=sys.stderr)
 

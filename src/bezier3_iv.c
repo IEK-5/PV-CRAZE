@@ -265,6 +265,25 @@ curve B3DistCurve(generic_pars P, curve C, MODELSET *S)
 	d=B3DistCurve_i(par, C,S);
 	return d;
 }
+
+
+// Exported Function
+double B3IV(double V, generic_pars P, MODELSET *S)
+{	
+	B3pars par;
+	par=Generic2B3Pars(P,S);
+	return Solve_IV(V,P.pars[0],NULL,(void *) &par, &B3_i, S);	
+}
+
+// Exported Function
+double B3VI(double I, generic_pars P, MODELSET *S)
+{	
+	B3pars par;
+	par=Generic2B3Pars(P,S);
+	return Solve_VI(I,P.pars[0],NULL,(void *) &par, &B3_i, S);	
+}
+
+
 /* 
  * We solve controll points such that we cross the coordinate (X,Y) at t=t
  * Startpoint is (x0,y0) endpoint is (x1,y2)

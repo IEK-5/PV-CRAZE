@@ -267,6 +267,23 @@ curve B2DistCurve(generic_pars P, curve C, MODELSET *S)
 {
 	return B2DistCurve_i(Generic2B2Pars(P), C,S);
 }
+
+// Exported Function
+double B2IV(double V, generic_pars P, MODELSET *S)
+{	
+	B2pars par;
+	par=Generic2B2Pars(P);
+	return Solve_IV(V,P.pars[0],NULL,(void *) &par, &B2IV_i, S);	
+}
+
+// Exported Function
+double B2VI(double I, generic_pars P, MODELSET *S)
+{	
+	B2pars par;
+	par=Generic2B2Pars(P);
+	return Solve_VI(I,P.pars[0],NULL,(void *) &par, &B2IV_i, S);	
+}
+
 curvepars B2Pars(generic_pars P, MODELSET *S)
 {
 	curvepars par;

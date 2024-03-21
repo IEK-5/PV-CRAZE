@@ -13,7 +13,6 @@ models={"model(PV-Bezier)","model(PV-spline)","model(KH)","model(Diode) oeps(0.6
 name  ={"PV-Bezier","PV-spline","KH","Diode"}
 % model specific threshold (note that fitting routines may be randomly initialized!)
 TH    =1e-2;
-
 for i=1:length(models)
 	% model fit
 	mpar = pvcraze_modelfit (ESP, sprintf("%s",models{i}));

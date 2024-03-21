@@ -34,9 +34,9 @@
  */
 
 // provide two models, the plain Spline and the PV-Spline (monotone spline by inserting dummy knots)
-//MODELFLAG SPLINE Spline SplineToCurve SplineRMSErr SplineDistCurve PlainSplineFit SplinePars
+//MODELFLAG SPLINE Spline SplineToCurve SplineRMSErr SplineDistCurve PlainSplineFit SplinePars SplineIV SplineVI
 //MODELPARS SPLINE Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
-//MODELFLAG PVSPLINE PV-spline SplineToCurve SplineRMSErr SplineDistCurve PVSplineFit SplinePars
+//MODELFLAG PVSPLINE PV-spline SplineToCurve SplineRMSErr SplineDistCurve PVSplineFit SplinePars SplineIV SplineVI
 //MODELPARS PVSPLINE Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
 
 curve 			SplineToCurve(generic_pars P, int N, MODELSET *S);
@@ -45,6 +45,8 @@ curve 			SplineDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	PlainSplineFit(curvepars par, curve C, double *Efit, MODELSET *S);
 generic_pars 	PVSplineFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		SplinePars(generic_pars P, MODELSET *S);
+double 			SplineIV(double V, generic_pars P, MODELSET *S);
+double 			SplineVI(double I, generic_pars P, MODELSET *S);
 
 // IEC60891 Procedure 2 Translation of a PV-Spline
 generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S);

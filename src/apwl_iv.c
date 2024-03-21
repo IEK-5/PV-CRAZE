@@ -328,6 +328,45 @@ curve SPWLDistCurve(generic_pars P, curve C, MODELSET *S)
 	FreeSmooth(&spar);
 	return d;
 }
+
+// Exported Function
+double APWLIV(double V, generic_pars P, MODELSET *S)
+{
+	apwlpars par;
+	par=Generic2APWLPars(P,S);
+	return Solve_IV(V,P.pars[0],NULL,(void *) &par, &APWL_i, S);
+}
+// Exported Function
+double APWLVI(double I, generic_pars P, MODELSET *S)
+{
+	apwlpars par;
+	par=Generic2APWLPars(P,S);
+	return Solve_IV(I,P.pars[1],NULL,(void *) &par, &APWL_i, S);
+}
+// Exported Function
+double SPWLIV(double V, generic_pars P, MODELSET *S)
+{
+	apwlpars par;
+	spwlpars spar;
+	double I;
+	par=Generic2APWLPars(P,S);
+	spar=InitSmooth(par);
+	I=Solve_IV(V,P.pars[0],NULL,(void *) &spar, &SPWL_i, S);
+	FreeSmooth(&spar);
+	return I;
+}
+// Exported Function
+double SPWLVI(double I, generic_pars P, MODELSET *S)
+{
+	apwlpars par;
+	spwlpars spar;
+	double V;
+	par=Generic2APWLPars(P,S);
+	spar=InitSmooth(par);
+	V=Solve_IV(I,P.pars[1],NULL,(void *) &spar, &SPWL_i, S);
+	FreeSmooth(&spar);
+	return V;
+}
 // Exported Function
 generic_pars APWLFit(curvepars par, curve C, double *Efit, MODELSET *S)
 {	

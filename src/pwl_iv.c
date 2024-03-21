@@ -218,6 +218,17 @@ curve PWLDistCurve(generic_pars P, curve C, MODELSET *S)
 }
 
 // Exported Function
+double PWLIV(double V, generic_pars P, MODELSET *S)
+{	
+	return Solve_IV(V,P.pars[0],NULL,(void *) &P, &PWL_i, S);	
+}
+
+// Exported Function
+double PWLVI(double I, generic_pars P, MODELSET *S)
+{	
+	return Solve_VI(I,P.pars[1],NULL,(void *) &P, &PWL_i, S);	
+}
+// Exported Function
 generic_pars PWLFit(curvepars par, curve C, double *Efit, MODELSET *S)
 {	
 	generic_pars P;

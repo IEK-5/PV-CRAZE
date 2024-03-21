@@ -34,15 +34,15 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG DIODE Diode DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFit DiodePars
+//MODELFLAG DIODE Diode DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFit DiodePars DiodeIV DiodeVI
 //MODELPARS DIODE I0 nkT Iph Rs Rsh
  
 // disabled model, remove X if you want to re-enable
-//MXODELFLAG DIODE DiodeQ DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFitGqmp DiodePars
+//MXODELFLAG DIODE DiodeQ DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFitGqmp DiodePars DiodeIV DiodeVI
 //MXODELPARS DIODE I0 nkT Iph Rs Rsh
 
 // disabled model, remove X if you want to re-enable
-//MXODELFLAG DIODEDE DioDE DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFitDE DiodePars
+//MXODELFLAG DIODEDE DioDE DiodeToCurve DiodeRMSErr DiodeDistCurve DiodeFitDE DiodePars DiodeIV DiodeVI
 //MXODELPARS DIODEDE I0 nkT Iph Rs Rsh
 
 curve 			DiodeToCurve(generic_pars P, int N, MODELSET *S);
@@ -53,6 +53,8 @@ generic_pars 	DiodeFitGqmp(curvepars par, curve C, double *Efit, MODELSET *S);
 // generic_pars 	DiodeFit_red(curvepars par, curve C, double *Efit);
 // generic_pars 	DiodeFitDE(curvepars par, curve C, double *Efit);
 curvepars 		DiodePars(generic_pars P, MODELSET *S);
+double 			DiodeIV(double V, generic_pars P, MODELSET *S);
+double 			DiodeVI(double I, generic_pars P, MODELSET *S);
 
 // Diode model G-T translation
 generic_pars DiodeGTFit(curvepars *C, double *G, double *T, int N, 

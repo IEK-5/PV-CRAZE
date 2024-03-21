@@ -49,6 +49,8 @@ static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObj
 static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *py_pv_craze_iv(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs);
 //static PyObject *py_pv_craze_errorcurve(PyObject *self, PyObject *args);
 
 /* **************************************************
@@ -84,6 +86,8 @@ static PyMethodDef pv_craze_methods[] = {
 	{"flagtable",  				py_pv_craze_FlagTable				, METH_NOARGS					,"generate a flag table for the used pv-craze library"},
 	{"modelfit", 				py_pv_craze_modelfit_list			, METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
 	{"modelerror", 				py_pv_craze_error					, METH_VARARGS | METH_KEYWORDS	,"Compute RMS distance between IV-curve and model"},
+	{"iv", 						py_pv_craze_iv						, METH_VARARGS | METH_KEYWORDS	,"Compute current from voltage with model parameters"},
+	{"vi", 						py_pv_craze_vi						, METH_VARARGS | METH_KEYWORDS	,"Compute voltage from current with model parameters"},
 //    {"pv_craze_errorcurve", py_pv_craze_errorcurve, METH_VARARGS,""},
 	{"translate_IEC60891_v2", 	py_pv_craze_translate_IEC60891_v2	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 translation routine"},
 	{"fit_IEC60891_v2", 		py_pv_craze_fit_IEC60891_v2			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 fitting routine"},
@@ -986,6 +990,256 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	return Py_BuildValue("O", py_error);
 
 }
+
+static PyObject *py_pv_craze_iv(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	PyArrayObject *py_genpars, *py_V, *py_I;
+	generic_pars P;
+	double a,V;
+	int i, j, n, m;
+	npy_intp ArrayDim[2]={0};
+
+	static char *kwlist[] = {
+		"V",
+		"modelpar",
+		NULL
+	};
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!",kwlist, &PyArray_Type, &py_V,  &PyArray_Type, &py_genpars)) 
+		return NULL;
+	if(NULL==py_genpars) 
+		return NULL;
+	if(NULL==py_V) 
+		return NULL;
+	
+	if (PyArray_NDIM(py_genpars)==1)
+	{
+		n=py_genpars->dimensions[0];
+		if ((n!=11)&&(n!=10))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 11");
+			return NULL;
+		}
+		if (n==11)
+		{
+			a=*(double *)(py_genpars->data);
+			if (fabs(a-round(a))>1e-15)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+				return NULL;	
+			}
+			if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+				return NULL;	
+			}
+			P.TYPE=(MODEL_TYPE)a;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i+1)*py_genpars->strides[0]);
+		}
+		else
+		{
+			P.TYPE=PVC_def_type;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i)*py_genpars->strides[0]);
+		}
+	}
+	else if (PyArray_NDIM(py_genpars)==2)
+	{
+		n=py_genpars->dimensions[0];
+		m=py_genpars->dimensions[1];
+		if (n!=1)
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+			return NULL;
+		}
+		if ((m!=11)&&(m!=10))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+			return NULL;
+		}
+		if (m==11)
+		{
+			a=*(double *)(py_genpars->data);
+			if (fabs(a-round(a))>1e-15)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+				return NULL;	
+			}
+			if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+				return NULL;	
+			}
+			P.TYPE=(MODEL_TYPE)a;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i+1)*py_genpars->strides[1]);
+		}
+		else
+		{
+			P.TYPE=PVC_def_type;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i)*py_genpars->strides[1]);
+		}
+	}
+	else
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+		return NULL;		
+	}
+	if (PyArray_NDIM(py_V)==1)
+	{
+		n=py_V->dimensions[0];
+		ArrayDim[0]=n;
+		py_I=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
+		for (i=0;i<n;i++)
+		{
+			V=*(double *)(py_V->data+(i)*py_V->strides[0]);
+			PyArray_SETITEM(py_I, PyArray_GETPTR1(py_I, i), PyFloat_FromDouble(pv_craze_IV(V, P)));
+		}
+	}
+	else if (PyArray_NDIM(py_V)==2)
+	{
+		n=py_V->dimensions[0];
+		m=py_V->dimensions[1];
+		ArrayDim[0]=n;
+		ArrayDim[1]=m;
+		py_I=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
+		for (i=0;i<n;i++)
+			for (j=0;j<m;j++)
+			{
+				V=*(double *)(py_V->data+i*py_V->strides[0]+j*py_V->strides[1]);
+				PyArray_SETITEM(py_I, PyArray_GETPTR2(py_I, i,j), PyFloat_FromDouble(pv_craze_IV(V, P)));
+			}
+	}
+	return Py_BuildValue("O", py_I);
+}
+
+static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+	PyArrayObject *py_genpars, *py_V, *py_I;
+	
+	generic_pars P;
+	double a,I;
+	int i, j, n, m;
+	npy_intp ArrayDim[2]={0};
+
+	static char *kwlist[] = {
+		"I",
+		"modelpar",
+		NULL
+	};
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!",kwlist, &PyArray_Type, &py_I,  &PyArray_Type, &py_genpars)) 
+		return NULL;
+	if(NULL==py_genpars) 
+		return NULL;
+	if(NULL==py_V) 
+		return NULL;
+	
+	if (PyArray_NDIM(py_genpars)==1)
+	{
+		n=py_genpars->dimensions[0];
+		if ((n!=11)&&(n!=10))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 11");
+			return NULL;
+		}
+		if (n==11)
+		{
+			a=*(double *)(py_genpars->data);
+			if (fabs(a-round(a))>1e-15)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+				return NULL;	
+			}
+			if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+				return NULL;	
+			}
+			P.TYPE=(MODEL_TYPE)a;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i+1)*py_genpars->strides[0]);
+		}
+		else
+		{
+			P.TYPE=PVC_def_type;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i)*py_genpars->strides[0]);
+		}
+	}
+	else if (PyArray_NDIM(py_genpars)==2)
+	{
+		n=py_genpars->dimensions[0];
+		m=py_genpars->dimensions[1];
+		if (n!=1)
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+			return NULL;
+		}
+		if ((m!=11)&&(m!=10))
+		{
+			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+			return NULL;
+		}
+		if (m==11)
+		{
+			a=*(double *)(py_genpars->data);
+			if (fabs(a-round(a))>1e-15)
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+				return NULL;	
+			}
+			if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
+			{
+				PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+				return NULL;	
+			}
+			P.TYPE=(MODEL_TYPE)a;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i+1)*py_genpars->strides[1]);
+		}
+		else
+		{
+			P.TYPE=PVC_def_type;
+			for(i=0; i<10; i++)
+				P.pars[i]=*(double *)(py_genpars->data+(i)*py_genpars->strides[1]);
+		}
+	}
+	else
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an array of length 1x10 or 1x11");
+		return NULL;		
+	}
+	if (PyArray_NDIM(py_I)==1)
+	{
+		n=py_I->dimensions[0];
+		ArrayDim[0]=n;
+		py_V=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
+		for (i=0;i<n;i++)
+		{
+			I=*(double *)(py_I->data+i*py_I->strides[0]);
+			PyArray_SETITEM(py_V, PyArray_GETPTR1(py_V, i), PyFloat_FromDouble(pv_craze_VI(I, P)));
+		}
+	}
+	else if (PyArray_NDIM(py_I)==2)
+	{
+		n=py_I->dimensions[0];
+		m=py_I->dimensions[1];
+		ArrayDim[0]=n;
+		ArrayDim[1]=m;
+		py_V=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
+		for (i=0;i<n;i++)
+			for (j=0;j<m;j++)
+			{
+				I=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
+				PyArray_SETITEM(py_V, PyArray_GETPTR2(py_V, i,j), PyFloat_FromDouble(pv_craze_VI(I, P)));
+			}
+	}
+	return Py_BuildValue("O", py_V);
+}
+
+
+
 
 static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *args, PyObject *kwargs)
 {

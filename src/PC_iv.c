@@ -150,6 +150,21 @@ curvepars PCPars(generic_pars P, MODELSET *S)
 	return SolPar(pp.Voc, pp.Isc, (void *) &pp, &PCIV_i, S);	
 }
 
+// Exported Function
+double PCIV(double V, generic_pars P, MODELSET *S)
+{	
+	PCpars par;
+	par=Generic2PCPars(P);
+	return Solve_IV(V,par.Voc,NULL,(void *) &par, &PCIV_i, S);	
+}
+
+// Exported Function
+double PCVI(double I, generic_pars P, MODELSET *S)
+{	
+	PCpars par;
+	par=Generic2PCPars(P);
+	return Solve_VI(I,par.Isc,NULL,(void *) &par, &PCIV_i, S);	
+}
 
 generic_pars PCFit(curvepars par, curve C, double *Efit, MODELSET *S)
 {

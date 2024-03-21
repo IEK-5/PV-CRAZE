@@ -297,6 +297,23 @@ curvepars DiodePars(generic_pars P, MODELSET *S)
 	return SolPar(pp.Voc, pp.Isc, (void *) &pp, &diodeIV_i, S);	
 }
 
+// Exported Function
+double DiodeIV(double V, generic_pars P, MODELSET *S)
+{	
+	diodepars par;
+	par=Generic2DiodePars(P,S);
+	return Solve_IV(V,par.Voc,NULL,(void *) &par, &diodeIV_i, S);	
+}
+
+// Exported Function
+double DiodeVI(double I, generic_pars P, MODELSET *S)
+{	
+	diodepars par;
+	par=Generic2DiodePars(P,S);
+	return Solve_VI(I,par.Isc,NULL,(void *) &par, &diodeIV_i, S);	
+}
+
+
 // function to select support points in the oblicque asymptote parametrization routines
 void Select(curvepars P, int i, double *V, double *I)
 {

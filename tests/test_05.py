@@ -27,4 +27,3 @@ for i in range(len(models)):
 		exit(1)
 	else:
 		print(f"All OK", file=sys.stderr)
-		exit(0)

@@ -432,6 +432,23 @@ curvepars _Pars(generic_pars P, MODELSET *S)
 	return MODEL_TABLE[i].PARS(P,S);
 }
 
+double _IV(double V, generic_pars P, MODELSET *S)
+{
+	int i;
+	if (P.TYPE==M_NONE)
+		return NAN;
+	i=ModelIndex(P.TYPE);
+	return MODEL_TABLE[i].IV(V,P,S);
+}
+double _VI(double I, generic_pars P, MODELSET *S)
+{
+	int i;
+	if (P.TYPE==M_NONE)
+		return NAN;
+	i=ModelIndex(P.TYPE);
+	return MODEL_TABLE[i].VI(I,P,S);
+}
+
 generic_pars _Fit(MODEL_TYPE T, curvepars par, curve C, double *Efit, MODELSET *S)
 {
 	int i;
@@ -469,6 +486,14 @@ generic_pars pv_craze_g_fit(MODEL_TYPE T, curvepars par, curve C, double *Efit)
 	return _Fit(T, par, C, Efit, &DefaultMODSET);
 }
 
+double pv_craze_IV(double V, generic_pars P)
+{
+	return _IV(V,P, &DefaultMODSET);
+}
+double pv_craze_VI(double I, generic_pars P)
+{
+	return _VI(I,P, &DefaultMODSET);
+}
 
 void FitModels(MODEL_LIST *L, curvepars par, curve C, int R)
 {

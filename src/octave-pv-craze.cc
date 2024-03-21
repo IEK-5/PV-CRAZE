@@ -62,6 +62,8 @@ typedef enum {IFILTER,SFILTER, MPPMETHOD, MPPDV, MPPDI, SCDV, OCDI, MODEL, RESAM
 // PKG_ADD: autoload("pvcraze_modelpars","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_modelerror","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_errorcurve","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_iv","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_vi","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_fit_IEC60891_v2","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_fit_IEC60891_v3","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_IEC60891_v2","pv_craze.oct");
@@ -1094,11 +1096,9 @@ Output:\n\
 			}
 		}
 		PP=Pars(i%Nr,i/Nr).matrix_value();
-		if ((PP.rows()!=1)&&(PP.cols()!=11))
-		{
+		if (PP.rows()!=1)
 			P[i]=NULPAR;
-		}
-		else
+		else if(PP.cols()==11)
 		{
 			P[i].TYPE=(MODEL_TYPE)PP(0);
 			P[i].pars[0]=PP(1);
@@ -1111,7 +1111,23 @@ Output:\n\
 			P[i].pars[7]=PP(8);
 			P[i].pars[8]=PP(9);
 			P[i].pars[9]=PP(10);
-		}				
+		}		
+		else if(PP.cols()==10)
+		{
+			P[i].TYPE=M_PVBEZIER;
+			P[i].pars[0]=PP(0);
+			P[i].pars[1]=PP(1);
+			P[i].pars[2]=PP(2);
+			P[i].pars[3]=PP(3);
+			P[i].pars[4]=PP(4);
+			P[i].pars[5]=PP(5);
+			P[i].pars[6]=PP(6);
+			P[i].pars[7]=PP(7);
+			P[i].pars[8]=PP(8);
+			P[i].pars[9]=PP(9);
+		}
+		else
+			P[i]=NULPAR;
 	}
 	
 	
@@ -1149,6 +1165,171 @@ Output:\n\
 	
 }
 
+DEFUN_DLD (pvcraze_iv, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{I}] =} pvcraze_iv (@var{V},@var{modelpar})\n\
+pvcraze_iv is part of the PV-CRAZE package and computes c current given a voltage for\n\
+PV-CRAZE generic parameters\n\n\
+Input:\n\
+@itemize \n\
+@item @var{V}: Array of voltages\n\
+@item @var{modelpar}: generic model parameters (sized 1x10 or 1x11). If an array is 1x11, it is treated as generic model parameters. If an 1x10 array is passed the PV-Bezier model is used.\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{I}: Array with currents corresponing to the given voltages\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	Matrix I, V, Pars;
+	generic_pars P;
+	int Nr,Nc;
+	int i, j;
+  	if (nargin != 2)
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	
+	Pars=args(1).matrix_value();
+	V=args(0).matrix_value();
+	
+	Nr=V.rows();
+	Nc=V.cols();
+	
+	if ((Pars.rows()!=1)||((Pars.cols()!=10)&&(Pars.cols()!=11)))	
+	{
+		fprintf(stderr, "Size of the modelpar array must be sized 1x10 or 1x11\n");
+		return octave_value_list ();
+	}
+	if ((Nc==0)||(Nr==0))
+	{
+		retval(0)=Matrix(Nr,Nc);
+		return retval;
+	}
+	if (Pars.cols()==11)
+	{
+		P.TYPE=(MODEL_TYPE)Pars(0);
+		P.pars[0]=Pars(1);
+		P.pars[1]=Pars(2);
+		P.pars[2]=Pars(3);
+		P.pars[3]=Pars(4);
+		P.pars[4]=Pars(5);
+		P.pars[5]=Pars(6);
+		P.pars[6]=Pars(7);
+		P.pars[7]=Pars(8);
+		P.pars[8]=Pars(9);
+		P.pars[9]=Pars(10);
+	}
+	else
+	{
+		P.TYPE=M_PVBEZIER;
+		P.pars[0]=Pars(0);
+		P.pars[1]=Pars(1);
+		P.pars[2]=Pars(2);
+		P.pars[3]=Pars(3);
+		P.pars[4]=Pars(4);
+		P.pars[5]=Pars(5);
+		P.pars[6]=Pars(6);
+		P.pars[7]=Pars(7);
+		P.pars[8]=Pars(8);
+		P.pars[9]=Pars(9);
+	}
+	
+	I=Matrix(Nr,Nc);
+	
+	for (i=0;i<Nr;i++)
+		for (j=0;j<Nc;j++)
+			I(i,j)=pv_craze_IV(V(i,j), P);
+	
+	retval(0)=octave_value(I);
+	return retval;	
+	
+}
+
+DEFUN_DLD (pvcraze_vi, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{V}] =} pvcraze_iv (@var{I},@var{modelpar})\n\
+pvcraze_vi is part of the PV-CRAZE package and computes a voltage given a current for\n\
+PV-CRAZE generic parameters\n\n\
+Input:\n\
+@itemize \n\
+@item @var{I}: Array of currents\n\
+@item @var{modelpar}: generic model parameters (sized 1x10 or 1x11). If an array is 1x11, it is treated as generic model parameters. If an 1x10 array is passed the PV-Bezier model is used.\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{V}: Array with voltages corresponing to the given currents\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	Matrix I, V, Pars;
+	generic_pars P;
+	int Nr,Nc;
+	int i, j;
+  	if (nargin != 2)
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	
+	Pars=args(1).matrix_value();
+	I=args(0).matrix_value();
+	
+	Nr=I.rows();
+	Nc=I.cols();
+	
+	if ((Pars.rows()!=1)||((Pars.cols()!=10)&&(Pars.cols()!=11)))
+	{
+		fprintf(stderr, "Size of the modelpar array must be sized 1x10 or 1x11\n");
+		return octave_value_list ();
+	}
+	if ((Nc==0)||(Nr==0))
+	{
+		retval(0)=Matrix(Nr,Nc);
+		return retval;
+	}
+	if (Pars.cols()==11)
+	{
+		P.TYPE=(MODEL_TYPE)Pars(0);
+		P.pars[0]=Pars(1);
+		P.pars[1]=Pars(2);
+		P.pars[2]=Pars(3);
+		P.pars[3]=Pars(4);
+		P.pars[4]=Pars(5);
+		P.pars[5]=Pars(6);
+		P.pars[6]=Pars(7);
+		P.pars[7]=Pars(8);
+		P.pars[8]=Pars(9);
+		P.pars[9]=Pars(10);
+	}
+	else
+	{
+		P.TYPE=M_PVBEZIER;
+		P.pars[0]=Pars(0);
+		P.pars[1]=Pars(1);
+		P.pars[2]=Pars(2);
+		P.pars[3]=Pars(3);
+		P.pars[4]=Pars(4);
+		P.pars[5]=Pars(5);
+		P.pars[6]=Pars(6);
+		P.pars[7]=Pars(7);
+		P.pars[8]=Pars(8);
+		P.pars[9]=Pars(9);
+	}
+	
+	V=Matrix(Nr,Nc);
+	
+	for (i=0;i<Nr;i++)
+		for (j=0;j<Nc;j++)
+			V(i,j)=pv_craze_VI(I(i,j), P);
+	
+	retval(0)=octave_value(V);
+	return retval;	
+	
+}
 
 DEFUN_DLD (pvcraze_fit_IEC60891_v2, args, nargout, "-*- texinfo -*-\n\
 @deftypefn {} {[@var{esp_std}, alpha, beta, a, Rs, kappa] =} pvcraze_fit_IEC60891_v2 (@var{esp}, T, G, Tstd, Gstd)\n\

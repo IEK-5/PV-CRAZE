@@ -33,7 +33,7 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG KH KH KHToCurve KHRMSErr KHDistCurve KHFit KHPars
+//MODELFLAG KH KH KHToCurve KHRMSErr KHDistCurve KHFit KHPars KHIV KHVI
 //MODELPARS KH Voc Isc gamma m
 
 curve 			KHToCurve(generic_pars P, int N, MODELSET *S);
@@ -41,4 +41,5 @@ double 			KHRMSErr(generic_pars P, curve C, MODELSET *S);
 curve 			KHDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	KHFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		KHPars(generic_pars P, MODELSET *S);
-
+double 			KHIV(double V, generic_pars P, MODELSET *S);
+double 			KHVI(double I, generic_pars P, MODELSET *S);

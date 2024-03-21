@@ -75,6 +75,8 @@ generic_pars 	pv_craze_g_fit(MODEL_TYPE T, curvepars par, curve C, double *Efit)
 curvepars 		pv_craze_g_pars(generic_pars);
 int 			pv_craze_numfields(MODEL_TYPE T);
 char 			*pv_craze_reverselookup(MODEL_TYPE T);
+double 			pv_craze_IV(double V, generic_pars P);
+double 			pv_craze_VI(double I, generic_pars P);
 
 //END-HEADER-EXPORT mark the end of a block that describes the C api
 

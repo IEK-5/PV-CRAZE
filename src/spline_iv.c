@@ -409,6 +409,21 @@ curve SplineDistCurve(generic_pars P, curve C, MODELSET *S)
 }
 
 
+// Exported Function
+double SplineIV(double V, generic_pars P, MODELSET *S)
+{	
+	splinepars par;
+	par=Generic2SplinePars(P);
+	return Solve_IV(V,P.pars[0],NULL,(void *) &par, &splineIV_i, S);	
+}
+
+// Exported Function
+double SplineVI(double I, generic_pars P, MODELSET *S)
+{	
+	splinepars par;
+	par=Generic2SplinePars(P);
+	return Solve_VI(I,P.pars[0],NULL,(void *) &par, &splineIV_i, S);	
+}
 
 /* the following routines are to fit a spline to data
  * It should only be used for plain splines and not PV-Splines which 

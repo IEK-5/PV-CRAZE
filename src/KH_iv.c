@@ -152,6 +152,21 @@ curvepars KHPars(generic_pars P, MODELSET *S)
 }
 
 
+// Exported Function
+double KHIV(double V, generic_pars P, MODELSET *S)
+{	
+	KHpars par;
+	par=Generic2KHPars(P);
+	return Solve_IV(V,par.Voc,NULL,(void *) &par, &KHIV_i, S);	
+}
+
+// Exported Function
+double KHVI(double I, generic_pars P, MODELSET *S)
+{	
+	KHpars par;
+	par=Generic2KHPars(P);
+	return Solve_VI(I,par.Isc,NULL,(void *) &par, &KHIV_i, S);	
+}
 /* I built 3 fitting routines:
  * 1 newton solver
  * 1 Levenberg Marquard

@@ -146,6 +146,58 @@ curve DistCurve(double Voc, double Isc, void * pars, point (*model)(double, poin
 	}
 	return D;
 }
+
+#define BRACKETITER 10
+
+int FindVBrackets(double V, double var, double *vmin, double *vmax, void * pars, point (*model)(double, point *, void *), MODELSET *S)
+{
+	point p, dp;
+	double dvar, nvar;
+	int max=0, iter=0;
+	(*vmax)=var;
+	(*vmin)=var;
+	p=model(var,&dp,pars);
+	if (!isfinite(p.x))
+		return 1;
+	dvar=(V - p.x)/dp.x;
+	if (!isfinite(dvar)) // dp.x=0?
+		return 1;
+		
+	if (p.x>V)
+		max=1;
+	while ((isfinite(p.x)) && (iter<BRACKETITER))
+	{
+		var+=2*dvar;
+		p=model(var,&dp,pars);
+		if (!isfinite(p.x))
+			return 1;
+		if (max)
+		{
+			if (p.x<V)
+			{
+				(*vmin)=var;
+				return 0;
+			}
+		}
+		else
+		{
+			if (p.x>V)
+			{
+				(*vmax)=var;
+				return 0;
+			}
+		}	
+		nvar=(V - p.x)/dp.x;
+		if (isfinite(nvar)) // dp.x=0?
+			dvar=nvar;
+		else
+			dvar=1;
+		iter++;
+	}
+	return 1;	
+}
+
+
 // solve the current for a specified voltage
 double Solve_t_IV(double V, double Voc, void * pars, point (*model)(double, point *, void *), MODELSET *S)
 {
@@ -153,10 +205,10 @@ double Solve_t_IV(double V, double Voc, void * pars, point (*model)(double, poin
 	point p, dp;
 	int i=0;
 	var=V/Voc;
-	if (var<0)
-		var=0.5;
-	if (var>1)
-		var=0.5;
+	// var not bracketet between 0 and 1
+	if ((var<0)||(var>1))		
+		if (FindVBrackets(V, var, &vmin, &vmax, pars, model, S))
+			return var;
 	
 	p.x=V+Voc;
 	while (((vmax-vmin>S->meps)||(fabs(p.x-V)/Voc<S->meps))&&(i<S->miter))
@@ -167,20 +219,10 @@ double Solve_t_IV(double V, double Voc, void * pars, point (*model)(double, poin
 		nvar=var+dvar;
 		if (isfinite(nvar))
 		{
-			if (i%2) // in case we always find the same v we are at the minimum, make sure we bracket the minimum
-			{
-				if (nvar>var)
-					vmin=var;
-				else
-					vmax=var;
-			}
+			if (nvar>var)
+				vmin=var;
 			else
-			{
-				if (nvar<var)
-					vmax=var;
-				else
-					vmin=var;
-			}
+				vmax=var;
 			var=nvar;
 			if ((var<vmin)||(var>vmax)) // keep v within brackets
 				var=(vmin+vmax)/2;
@@ -192,6 +234,57 @@ double Solve_t_IV(double V, double Voc, void * pars, point (*model)(double, poin
 	return var;
 }
 
+
+
+int FindIBrackets(double I, double var, double *vmin, double *vmax, void * pars, point (*model)(double, point *, void *), MODELSET *S)
+{
+	point p, dp;
+	double dvar, nvar;
+	int min=0, iter=0;
+	(*vmax)=var;
+	(*vmin)=var;
+	p=model(var,&dp,pars);
+	if (!isfinite(p.y))
+		return 1;
+	dvar=(I - p.y)/dp.y;
+	if (!isfinite(dvar)) // dp.y=0?
+		return 1;
+		
+	if (p.y>I)
+		min=1;
+	while ((isfinite(p.x)) && (iter<BRACKETITER))
+	{
+		var+=2*dvar;
+		p=model(var,&dp,pars);
+		if (!isfinite(p.x))
+			return 1;
+		if (min)
+		{
+			if (p.y<I)
+			{
+				(*vmax)=var;
+				return 0;
+			}
+		}
+		else
+		{
+			if (p.y>I)
+			{
+				(*vmin)=var;
+				return 0;
+			}
+		}	
+		nvar=(I - p.y)/dp.y;
+		if (isfinite(nvar)) // dp.y=0?
+			dvar=nvar;
+		else
+			dvar=1;
+		iter++;
+	}
+	return 1;	
+}
+
+
 // solve the voltage for a specified current
 double Solve_t_VI(double I, double Isc,  void * pars, point (*model)(double, point *, void *), MODELSET *S)
 {
@@ -199,10 +292,9 @@ double Solve_t_VI(double I, double Isc,  void * pars, point (*model)(double, poi
 	point p, dp;
 	int i=0;
 	var=1-I/Isc;
-	if (var<0)
-		var=0.5;
-	if (var>1)
-		var=0.5;
+	if ((var<0)||(var>1))		
+		if (FindIBrackets(I, var, &vmin, &vmax, pars, model, S))
+			return var;
 	
 	p.y=I+Isc;
 	while (((vmax-vmin>S->meps)||(fabs(p.y-I)/Isc<S->meps))&&(i<S->miter))
@@ -213,20 +305,10 @@ double Solve_t_VI(double I, double Isc,  void * pars, point (*model)(double, poi
 		nvar=var+dvar;
 		if (isfinite(nvar))
 		{
-			if (i%2) // in case we always find the same v we are at the minimum, make sure we bracket the minimum
-			{
-				if (nvar>var)
-					vmin=var;
-				else
-					vmax=var;
-			}
+			if (nvar>var)
+				vmin=var;
 			else
-			{
-				if (nvar<var)
-					vmax=var;
-				else
-					vmin=var;
-			}
+				vmax=var;
 			var=nvar;
 			if ((var<vmin)||(var>vmax)) // keep v within brackets
 				var=(vmin+vmax)/2;

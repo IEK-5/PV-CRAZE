@@ -33,6 +33,7 @@
 #include <math.h>
 #include "emalloc.h"
 #include "tictoc.h"
+#include "curiosity.h"
 #include "curve.h"
 #include "fitmodels.h"
 #include "model_table.h" // only for fitmodels.h to figure out how to treat a model
@@ -99,6 +100,14 @@ MODEL_TYPE LookupModel(char *word)
 		if (strncmp(MODEL_TABLE[i].name,word,10)==0)
 			return MODEL_TABLE[i].TYPE;
 		i++;
+	}
+	if (strncmp(word,"kitten",10)==0)
+	{
+		/* 25.03.24, it is almost easter. So,
+		 * if you are looking for a kitten,
+		 * you may find one on Mars...
+		 */
+		Curiosity(5, 5);
 	}
 	return M_NONE;
 }

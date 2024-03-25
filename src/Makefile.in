@@ -136,11 +136,11 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(pkgdatadir)" \
 	"$(DESTDIR)$(includedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libpvcraze_la_LIBADD =
-am_libpvcraze_la_OBJECTS = emalloc.lo curve.lo fitmodels.lo Error.lo \
-	quickselect.lo curvemodel.lo spline_iv.lo splinefit.lo \
-	KH_iv.lo PC_iv.lo diode_iv.lo bezier2_iv.lo bezier3_iv.lo \
-	pwl_iv.lo apwl_iv.lo neldermead.lo diffevol.lo \
-	furthestsampling.lo lib-pv-craze.lo tictoc.lo
+am_libpvcraze_la_OBJECTS = emalloc.lo curve.lo fitmodels.lo \
+	curiosity.lo Error.lo quickselect.lo curvemodel.lo \
+	spline_iv.lo splinefit.lo KH_iv.lo PC_iv.lo diode_iv.lo \
+	bezier2_iv.lo bezier3_iv.lo pwl_iv.lo apwl_iv.lo neldermead.lo \
+	diffevol.lo furthestsampling.lo lib-pv-craze.lo tictoc.lo
 libpvcraze_la_OBJECTS = $(am_libpvcraze_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -167,13 +167,14 @@ am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/Error.Plo ./$(DEPDIR)/KH_iv.Plo \
 	./$(DEPDIR)/PC_iv.Plo ./$(DEPDIR)/apwl_iv.Plo \
 	./$(DEPDIR)/bezier2_iv.Plo ./$(DEPDIR)/bezier3_iv.Plo \
-	./$(DEPDIR)/curve.Plo ./$(DEPDIR)/curvemodel.Plo \
-	./$(DEPDIR)/diffevol.Plo ./$(DEPDIR)/diode_iv.Plo \
-	./$(DEPDIR)/emalloc.Plo ./$(DEPDIR)/fitmodels.Plo \
-	./$(DEPDIR)/furthestsampling.Plo ./$(DEPDIR)/lib-pv-craze.Plo \
-	./$(DEPDIR)/neldermead.Plo ./$(DEPDIR)/pwl_iv.Plo \
-	./$(DEPDIR)/quickselect.Plo ./$(DEPDIR)/spline_iv.Plo \
-	./$(DEPDIR)/splinefit.Plo ./$(DEPDIR)/tictoc.Plo
+	./$(DEPDIR)/curiosity.Plo ./$(DEPDIR)/curve.Plo \
+	./$(DEPDIR)/curvemodel.Plo ./$(DEPDIR)/diffevol.Plo \
+	./$(DEPDIR)/diode_iv.Plo ./$(DEPDIR)/emalloc.Plo \
+	./$(DEPDIR)/fitmodels.Plo ./$(DEPDIR)/furthestsampling.Plo \
+	./$(DEPDIR)/lib-pv-craze.Plo ./$(DEPDIR)/neldermead.Plo \
+	./$(DEPDIR)/pwl_iv.Plo ./$(DEPDIR)/quickselect.Plo \
+	./$(DEPDIR)/spline_iv.Plo ./$(DEPDIR)/splinefit.Plo \
+	./$(DEPDIR)/tictoc.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -352,7 +353,7 @@ top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = -Wall
 lib_LTLIBRARIES = libpvcraze.la
-libpvcraze_la_SOURCES = emalloc.c curve.c fitmodels.c Error.c quickselect.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c furthestsampling.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h io.h Error.h quickselect.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h furthestsampling.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
+libpvcraze_la_SOURCES = emalloc.c curve.c fitmodels.c curiosity.c Error.c quickselect.c curvemodel.c spline_iv.c splinefit.c KH_iv.c PC_iv.c diode_iv.c  bezier2_iv.c bezier3_iv.c pwl_iv.c apwl_iv.c neldermead.c diffevol.c furthestsampling.c lib-pv-craze.c tictoc.c emalloc.h curve.h fitmodels.h curiosity.h Error.h quickselect.h curvemodel.h spline_iv.h splinefit.h KH_iv.h PC_iv.h diode_iv.h  bezier2_iv.h bezier3_iv.h pwl_iv.h apwl_iv.h neldermead.h diffevol.h furthestsampling.h lib-pv-craze.h  lib-pv-craze-structs.h tictoc.h  gen_ivanalyzeflags.sh register_models.sh collect_headers.sh libpvcraze.map
 libpvcraze_la_LDFLAGS = -lm -Wl,--version-script=${srcdir}/libpvcraze.map -no-undefined  -version-number $(LIBVERSION)
 include_HEADERS = pvcraze.h
 BUILT_SOURCES = models.h model_table.h ivanalyzemessages.h ivanalyzeflags.h pvcraze.h Makefile_octave pyproject.toml setup.py
@@ -460,6 +461,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/apwl_iv.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bezier2_iv.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bezier3_iv.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/curiosity.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/curve.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/curvemodel.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/diffevol.Plo@am__quote@ # am--include-marker
@@ -688,6 +690,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/apwl_iv.Plo
 	-rm -f ./$(DEPDIR)/bezier2_iv.Plo
 	-rm -f ./$(DEPDIR)/bezier3_iv.Plo
+	-rm -f ./$(DEPDIR)/curiosity.Plo
 	-rm -f ./$(DEPDIR)/curve.Plo
 	-rm -f ./$(DEPDIR)/curvemodel.Plo
 	-rm -f ./$(DEPDIR)/diffevol.Plo
@@ -753,6 +756,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/apwl_iv.Plo
 	-rm -f ./$(DEPDIR)/bezier2_iv.Plo
 	-rm -f ./$(DEPDIR)/bezier3_iv.Plo
+	-rm -f ./$(DEPDIR)/curiosity.Plo
 	-rm -f ./$(DEPDIR)/curve.Plo
 	-rm -f ./$(DEPDIR)/curvemodel.Plo
 	-rm -f ./$(DEPDIR)/diffevol.Plo

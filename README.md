@@ -35,9 +35,15 @@ For the python interaface:
 
     pip install src/
 
+You can test the library and the octave and python interfaces by running the tests.
+
+    cd tests
+    ./runtest.sh
+
 ## Usage
 
-See DOC.md for details on the library.
+See DOC.md for details on the library. You can also look at the tests in the tests
+directory for examples.
 
  
 ## References

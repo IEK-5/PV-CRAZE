@@ -1,5 +1,5 @@
-m4_define([pvcraze_major_version],    [0])
-m4_define([pvcraze_minor_version],    [1])
+m4_define([pvcraze_major_version],    [1])
+m4_define([pvcraze_minor_version],    [0])
 m4_define([pvcraze_revis_version],    [0])
 m4_define([pvcraze_version],[pvcraze_major_version:pvcraze_minor_version:pvcraze_revis_version])
 AC_INIT([libpvcraze], [pvcraze_version])

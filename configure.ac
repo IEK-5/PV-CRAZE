@@ -1,8 +1,14 @@
-m4_define([pvcraze_major_version],    [1])
-m4_define([pvcraze_minor_version],    [0])
-m4_define([pvcraze_revis_version],    [0])
-m4_define([pvcraze_version],[pvcraze_major_version:pvcraze_minor_version:pvcraze_revis_version])
+# pv-craze version
+m4_define([pvcraze_version], [1.0])
 AC_INIT([libpvcraze], [pvcraze_version])
+
+# interface version 
+m4_define([pvcraze_current], [1])
+m4_define([pvcraze_revision],[0])
+m4_define([pvcraze_age],     [0])
+version_info="pvcraze_current:pvcraze_revision:pvcraze_age"
+AC_SUBST([version_info])
+
 
 AC_CONFIG_MACRO_DIR([m4])
 LT_INIT([])

@@ -44,8 +44,8 @@ static PyObject *py_pv_craze_verbose_set_head(PyObject *self, PyObject *args);
 /* **************************************************
  * curve modeling and analysis routines 
  * **************************************************/
-static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObject *kwargs);
-static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwargs);
@@ -78,13 +78,13 @@ static PyMethodDef pv_craze_methods[] = {
 	{"verbose_set_progress",	py_pv_craze_verbose_set_progress	, METH_VARARGS 					,"Enable/Disable printing a progress bar"},
 	{"verbose_set_timing",		py_pv_craze_verbose_set_timing		, METH_VARARGS 					,"Enable/Disable printing timing information"},
 	{"verbose_set_head",		py_pv_craze_verbose_set_head		, METH_VARARGS 					,"Enable/Disable printing a header"},
-	{"analyze", 				py_pv_craze_analyze_list			, METH_VARARGS | METH_KEYWORDS	,"PV-CRAZE curve analysis. Extracts the extended solar cell parameters and optionally fits curve models"},
+	{"analyze", 				py_pv_craze_analyze			        , METH_VARARGS | METH_KEYWORDS	,"PV-CRAZE curve analysis. Extracts the extended solar cell parameters and optionally fits curve models"},
 	{"curvemodel", 				py_pv_craze_curvemodel				, METH_VARARGS | METH_KEYWORDS	,"Reconstruct IV from curve model parameters"},
 	{"modelpars", 				py_pv_craze_modelpars				, METH_VARARGS | METH_KEYWORDS	,"Compute extended solar cell parameters from generic parameters"},
 	{"lookupmodel", 			py_pv_craze_LookupModel				, METH_VARARGS 					,"Returns a model ID based on a model name"},
 	{"reverselookup", 			py_pv_craze_ReverseLookup			, METH_VARARGS 					,"Returns a model name based on a model ID"},
 	{"flagtable",  				py_pv_craze_FlagTable				, METH_NOARGS					,"generate a flag table for the used pv-craze library"},
-	{"modelfit", 				py_pv_craze_modelfit_list			, METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
+	{"modelfit", 				py_pv_craze_modelfit			    , METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
 	{"modelerror", 				py_pv_craze_error					, METH_VARARGS | METH_KEYWORDS	,"Compute RMS distance between IV-curve and model"},
 	{"iv", 						py_pv_craze_iv						, METH_VARARGS | METH_KEYWORDS	,"Compute current from voltage with model parameters"},
 	{"vi", 						py_pv_craze_vi						, METH_VARARGS | METH_KEYWORDS	,"Compute voltage from current with model parameters"},
@@ -261,14 +261,14 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 
 npy_intp PARLEN=11;
 /* curve analysis tool:
- * py_pv_craze_analyze_list takes as input a list of numpy arrays and some optional arguments
+ * py_pv_craze_analyze takes as input a list of numpy arrays and some optional arguments
  * It returns a dictionary with in it:
  * epars: an Nx10 numpy array with for all N input IV's the extended solar cell parameters
  * flags: flags for each curve
  * genpars: list of N lists with one numpy array per model with parameters
  * E: Fit error values in a numpy array with N rows and one column per fitted model 
  */
-static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObject *kwargs)
+static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	// output objects
 	PyArrayObject *flags, *E, *epars; // output arrays
@@ -344,7 +344,7 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 	N=PyList_Size(py_curveList);
 	if ((C=malloc(N*sizeof(curve)))==NULL)
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze_list could not allocate memory");
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 		return NULL;
 	}
 	for(j=0; j<N; j++)
@@ -364,7 +364,7 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 		}
 		if ((C[j].P=malloc(n*sizeof(point)))==NULL)
 		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze_list could not allocate memory");
+			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 			return NULL;
 		}
 		for(i=0; i<n; i++)
@@ -375,7 +375,7 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 		C[j].N=n;
 	}
 
-	P=pv_craze_analyze_list(C, N, &S);
+	P=pv_craze_analyze(C, N, &S);
 
 	ArrayDim[0]=N;
 	ArrayDim[1]=10;
@@ -439,11 +439,11 @@ static PyObject *py_pv_craze_analyze_list(PyObject *self, PyObject *args, PyObje
 }
 
 /* epar fitting tool:
- * py_pv_craze_modelfit_list takes as input a list of epar numpy arrays (nx10)
+ * py_pv_craze_modelfit takes as input a list of epar numpy arrays (nx10)
  * and a list of strings to specify the models to fit.
  * It returns a list with generic parameter numpy arrays (nx11)
  */
-static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObject *kwargs)
+static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	// output objects
 	PyArrayObject *genpars; // generic parameter values for all IV's
@@ -528,7 +528,7 @@ static PyObject *py_pv_craze_modelfit_list(PyObject *self, PyObject *args, PyObj
 		pars[j].Roc=*(double *)(epars->data+j*epars->strides[0]+9*epars->strides[1]);
 	}
 
-	P=pv_craze_modelfit_list(pars, n, &S);
+	P=pv_craze_modelfit(pars, n, &S);
 	
 	genlist=PyList_New(S.L.N);
 	fiterrlist=PyList_New(S.L.N);

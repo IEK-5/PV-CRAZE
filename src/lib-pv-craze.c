@@ -303,7 +303,7 @@ void pv_craze_freesettings(ProcessSettings *S)
 
 // top level analysis routine
 // takes a single curve and returns a CurveProp given some settings
-CurveProp pv_craze_analyze(curve C, ProcessSettings *S, double *tana)
+CurveProp analyze_single(curve C, ProcessSettings *S, double *tana)
 {
 	CurveProp Prop={0};
 	int j, k;
@@ -619,7 +619,7 @@ void pvcraze_PrintHead(int N, char *title)
 }
 
 // do a batch analysis for a list of curves
-CurveProp * pv_craze_analyze_list(curve *C, int N, ProcessSettings *S)
+CurveProp * pv_craze_analyze(curve *C, int N, ProcessSettings *S)
 {
 	int i, pc=0;
 	CurveProp *Prop;
@@ -643,7 +643,7 @@ CurveProp * pv_craze_analyze_list(curve *C, int N, ProcessSettings *S)
 	TIC(&ttotal);
 	for (i=0;i<N;i++)
 	{
-		Prop[i]=pv_craze_analyze(C[i], S, &tana);
+		Prop[i]=analyze_single(C[i], S, &tana);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}	
 	pc=ProgressBar(100, pc, LLEN, TICS);
@@ -671,7 +671,7 @@ CurveProp * pv_craze_analyze_list(curve *C, int N, ProcessSettings *S)
 	return Prop;
 }
 
-CurveProp pv_craze_modelfit(curvepars par, ProcessSettings *S)
+CurveProp modelfit_single(curvepars par, ProcessSettings *S)
 {
 	CurveProp Prop;
 	int j, k;
@@ -721,7 +721,7 @@ CurveProp pv_craze_modelfit(curvepars par, ProcessSettings *S)
 
 
 // do a batch analysis for a list of epars
-CurveProp * pv_craze_modelfit_list(curvepars *par, int N, ProcessSettings *S)
+CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S)
 {
 	int i, pc=0;
 	CurveProp *Prop;
@@ -744,7 +744,7 @@ CurveProp * pv_craze_modelfit_list(curvepars *par, int N, ProcessSettings *S)
 	TIC(&ttotal);
 	for (i=0;i<N;i++)
 	{
-		Prop[i]=pv_craze_modelfit(par[i], S);
+		Prop[i]=modelfit_single(par[i], S);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}	
 	pc=ProgressBar(100, pc, LLEN, TICS);

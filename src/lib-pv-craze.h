@@ -53,11 +53,9 @@ AnalyzeFlag *pv_craze_flagtable(int *N);
  * curve modeling and analysis routines 
  * **************************************************/
 // analyze and optionally fit
-CurveProp pv_craze_analyze(curve C, ProcessSettings *S, double *tana);
-CurveProp * pv_craze_analyze_list(curve *C, int N, ProcessSettings *S);
+CurveProp * pv_craze_analyze(curve *C, int N, ProcessSettings *S);
 // only fit
-CurveProp pv_craze_modelfit(curvepars par, ProcessSettings *S);
-CurveProp * pv_craze_modelfit_list(curvepars *par, int N, ProcessSettings *S);
+CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S);
 // evaluate model and model errors
 curve *pv_craze_curvemodel(generic_pars *pars, int N, int M);
 double *pv_craze_error(generic_pars *pars, curve *C, int N);

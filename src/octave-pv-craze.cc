@@ -491,7 +491,7 @@ Output:\n\
 		}		
 	}
 	// analyze and construct a list of curve properties
-	Prop=pv_craze_analyze_list(C, Nc, &Set);
+	Prop=pv_craze_analyze(C, Nc, &Set);
 	
 	// get data out to matrices
 	for (i=0;i<Nc;i++)
@@ -623,7 +623,7 @@ Output:\n\
 			pars[i].Gsc  = EPar(i,8);
 			pars[i].Roc  = EPar(i,9);
 		}
-		P=pv_craze_modelfit_list(pars, Nc, &Set);
+		P=pv_craze_modelfit(pars, Nc, &Set);
 		
 		// get data out to matrices
 		for (i=0;i<Nc;i++)

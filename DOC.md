@@ -238,7 +238,7 @@ You may look at the scripts in the test directory for examples how to use both t
 
 
 
-#### pvcraze_errorcurve
+### pvcraze_errorcurve
      [errcurve] = pvcraze_errorcurve (modelpar, IV)
      pvcraze_errorcurve is part of the PV-CRAZE package and computes 
      the distance curve between IV curves and corresponding generic model 
@@ -256,7 +256,7 @@ You may look at the scripts in the test directory for examples how to use both t
           distance in a normalized current-voltage plane between curve
           and model w.r.t.  cell voltage
           
-#### pvcraze_fit_IEC60891_v2
+### pvcraze_fit_IEC60891_v2
      [esp_std, alpha, beta, a, Rs, kappa] = pvcraze_fit_IEC60891_v2 
      (esp, T, G, Tstd, Gstd [, unit,furthest_N])
      pvcraze_fit_IEC60891_v2 is part of the PV-CRAZE package and fits
@@ -288,7 +288,7 @@ You may look at the scripts in the test directory for examples how to use both t
         • Rs: IEC60891 Rs
         • kappa: IEC60891 kappa
         
-#### pvcraze_fit_IEC60891_v3
+### pvcraze_fit_IEC60891_v3
 	 [esp_std, alpha, beta, B1, B2, Rs, kappa] = pvcraze_fit_IEC60891_v3 
 	 (esp, T, G, Tstd, Gstd [,furthest_N])
 	 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits
@@ -321,7 +321,7 @@ You may look at the scripts in the test directory for examples how to use both t
         • Rs: IEC60891 Rs
         • kappa: IEC60891 kappa
         
-#### pvcraze_translate_IEC60891_v2
+### pvcraze_translate_IEC60891_v2
      esp = pvcraze_translate_IEC60891_v2 (esp, T1, G1, T2, G2, alpha, 
      beta, a, Rs, kappa)
      pvcraze_translate_IEC60891_v2 is part of the PV-CRAZE package and
@@ -346,7 +346,7 @@ You may look at the scripts in the test directory for examples how to use both t
           length of the array is the maximum of the length of the input
           (T1/G1 or G2/T2)
 
-#### pvcraze_translate_IEC60891_v3
+### pvcraze_translate_IEC60891_v3
      esp = pvcraze_translate_IEC60891_v3 (esp, T1, G1, T2, G2, Vocstd, 
      Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa)
      pvcraze_translate_IEC60891_v3 is part of the PV-CRAZE package and
@@ -375,7 +375,7 @@ You may look at the scripts in the test directory for examples how to use both t
           length of the array is the maximum of the length of the input
           (T1/G1 or G2/T2)
  
-#### pvcraze_fit_diode_GT
+### pvcraze_fit_diode_GT
 	 [modelpar, alpha, Ea] = pvcraze_fit_diode_GT 
 	 (esp, T, G, Tstd, Gstd [, unit,furthest_N])
 	 pvcraze_fit_diode_GT is part of the PV-CRAZE package and fits
@@ -415,7 +415,7 @@ You may look at the scripts in the test directory for examples how to use both t
         • alpha: Temperature coefficient for the photo-current
         • Ea: Activation energy of the saturation current.
         
-#### pvcraze_translate_diode_GT
+### pvcraze_translate_diode_GT
 	 [modelpar] = pvcraze_translate_diode_GT 
 	 (modelpar, Tstd, Gstd, T, G alpha, Ea [, unit])
 	 pvcraze_translate_diode_GT is part of the PV-CRAZE package and 
@@ -440,7 +440,7 @@ You may look at the scripts in the test directory for examples how to use both t
         • modelpar: Diode model parameters at the given temperature and 
           irradiance conditions
              
-#### pvcraze_lookupmodel
+### pvcraze_lookupmodel
      Mid = pvcraze_lookupmodel (modelname)
      pvcraze_lookupmodel searches for the model id corresponding to
      the string modelname.
@@ -450,7 +450,7 @@ You may look at the scripts in the test directory for examples how to use both t
      Output:
         • Mid: Model ID
         
-#### pvcraze_reverselookup
+### pvcraze_reverselookup
      modelname = pvcraze_lookupmodel (Mid)
      pvcraze_reverselookup searches for the model name corresponding to
      the model id.
@@ -460,7 +460,7 @@ You may look at the scripts in the test directory for examples how to use both t
      Output:
         • modelname: Name of the model (string), e.g. PV-Bezier or Diode
    
-#### pvcraze_flagtable
+### pvcraze_flagtable
      [flags,messages,err] = pvcraze_flagtable ()
      pvcraze_flagtable generates a table of principle flags,
      corresponding messages, and a boolean value whether the flag 
@@ -476,37 +476,43 @@ You may look at the scripts in the test directory for examples how to use both t
         • err: some messages are merely warnings and no errors. Err is 
                a boolean array with True for error flags.
   
-#### pvcraze_quiet
+### pvcraze_quiet
      pvcraze_quiet()
      Set pv-craze verbose level to quiet.
      
-#### pvcraze_verbose
+### pvcraze_verbose
      pvcraze_verbose()
      Set pv-craze verbose level to verbose.
      
-#### pvcraze_verbose_setreport
+### pvcraze_verbose_setreport
      pvcraze_verbose_setreport(set-value)
      Enable/Disable analysis report printing. If set-value evaluates to true a report is printed.
      
-#### pvcraze_verbose_setprogress
+### pvcraze_verbose_setprogress
      pvcraze_verbose_setprogress(set-value)
      Enable/Disable progress bar. If set-value evaluates to true a progress bar is displayed.
      
-#### pvcraze_verbose_settiming
+### pvcraze_verbose_settiming
      pvcraze_verbose_settiming(set-value)
      Enable/Disable timing report. If set-value evaluates to true a timing information is displayed.
      
-#### pvcraze_verbose_sethead
+### pvcraze_verbose_sethead
      pvcraze_verbose_sethead(set-value)
      Enable/Disable header output. If set-value evaluates to true a header is displayed.
 	
 ## C
-PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave and python libraries build). Installing the library also installs the library
-header, "pvcraze.h". This single header file contains all necessary data structures and
-declarations of the library symbols. 
+PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave and python libraries build). Installing the library also installs the library header, "pvcraze.h". This single header file contains all necessary data structures and declarations of the library symbols. 
 
 The most important data structures of the library are:
 
+typedef struct {
+	double x,y;
+} point;
+
+typedef struct {
+	point *P;
+	int N;
+} curve;
 
     typedef struct {
 	    double Voc, Isc;     // sc oc
@@ -523,39 +529,107 @@ The ```curvepars``` data structure contains the extended solar cell parameters. 
      	 MODEL_TYPE TYPE;
      } generic_pars;
 
-The ```generic_pars``` data structure contains a fixed size array of 10 parameters. The meaning of the parameters, however, depends on the ```MODEL_TYPE```. The ```MODEL_TYPE``` is an enumerator type and is automatically generated during compilation and depends on the models which are registered during compilation. This automated registering of models it easier to add new models but may have as a side effect that a new version of the library may change the value of the ```MODEL_TYPE``` refering to a specific model. Hence, you should not trust that a specific value refers to a specific model type. A reliable method to find the ```MODEL_TYPE``` value for a model is to use the ```pv_craze_lookupmodel``` routine:
+The ```generic_pars``` data structure contains a fixed size array of 10 parameters. The meaning of the parameters, however, depends on the ```MODEL_TYPE```. The ```MODEL_TYPE``` is an enumerator type and is automatically generated during compilation and depends on the models which are registered during compilation. This automated registering of models it easier to add new models but may have as a side effect that a new version of the library may change the value of the ```MODEL_TYPE``` refering to a specific model (use ```pv_craze_lookupmodel``` for this, see below). 
 
-    MODEL_TYPE pv_craze_lookupmodel(char *word);
-    
-This routine takes an identifyer string (e.g. "Diode") and returns the corresponding ```MODEL_TYPE```. 
+The ```CurveProp``` data structure contains the esp (curvepars-struct), flags for the curve, and lists of ```generic_pars``` and fit errors for the various models which are fitted to the curve.
+
+     typedef struct {
+     	curvepars par;								// curve parameters
+     	int A_FLAGS;								// analysis flags
+     	double *E;									// fit errors
+     	generic_pars *P;							// parameters for the various fit models
+     	int N;										// number of fit models
+     } CurveProp;
+
+
+
+### Routine Index	 
+#### pv_craze_initsettings
+     ProcessSettings pv_craze_initsettings();
+     Initialize a "ProcessSettings" struct needed to analyze IV Curves.
+
 #### pv_craze_addmodeltosettings
-	 
-pv_craze_analyze
-pv_craze_analyze_list
-pv_craze_curvemodel
-pv_craze_error
-pv_craze_errorcurve
-pv_craze_fit_IEC60891_v2
-pv_craze_fit_IEC60891_v3
-pv_craze_freeprop
-pv_craze_freesettings
-pv_craze_g_distcurve
-pv_craze_g_fit
-pv_craze_g_pars
-pv_craze_g_rmse
-pv_craze_g_tocurve
-pv_craze_initsettings
-pv_craze_lookupmodel
-pv_craze_modelfit
-pv_craze_modelfit_list
-pv_craze_numfields
-pv_craze_quiet
-pv_craze_translate_IEC60891_v2
-pv_craze_translate_IEC60891_v3
-pv_craze_verbose
-pv_craze_verbosehead
-pv_craze_verboseprogress
-pv_craze_verbosereport
-pv_craze_verbosetiming
+     void pv_craze_addmodeltosettings(ProcessSettings *S, const char *str);
+     Add a model specified by a string to a ProcessSettings-struct (see modelfit section)
 
-Discuss data types.
+#### pv_craze_freesettings
+     void pv_craze_freesettings(ProcessSettings *S);
+     Clean up a ProcessSettings-struct.
+
+#### pv_craze_analyze
+     CurveProp * pv_craze_analyze(curve *C, int N, ProcessSettings *S);
+     Process a list of curves in C, with N elements and ProcessSettings S. It returns an allocated list of corresponding curve properties. Thus, pv_craze_analyze determined the esp of the IV data and fits the models which were added to the ProcessSettings (i.e. if no model were added only the esp are determined).
+     
+#### pv_craze_modelfit
+     CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S);
+     Given a list of esp's and a ProcessSettings struct, fit the models which were added to the ProcessSettings to the esp's. It returns an allocated list of corresponding curve properties. 
+     
+#### pv_craze_freeprop
+     void pv_craze_freeprop(CurveProp *P);
+     Free the results produced by pv_craze_analyze or pv_craze_modelfit.
+
+#### pv_craze_curvemodel
+curve *pv_craze_curvemodel(generic_pars *pars, int N, int M);
+
+#### pv_craze_error
+double *pv_craze_error(generic_pars *pars, curve *C, int N);
+
+#### pv_craze_errorcurve
+curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N);
+
+#### pv_craze_fit_IEC60891_v2
+
+#### pv_craze_fit_IEC60891_v3
+
+#### pv_craze_translate_IEC60891_v2
+
+#### pv_craze_translate_IEC60891_v3
+
+
+#### pv_craze_g_distcurve
+
+#### pv_craze_g_fit
+
+#### pv_craze_g_pars
+
+#### pv_craze_g_rmse
+
+#### pv_craze_g_tocurve
+
+#### pv_craze_lookupmodel
+    MODEL_TYPE pv_craze_lookupmodel(char *word);    
+	This routine takes an identifyer string (e.g. "Diode") and returns the corresponding ```MODEL_TYPE```. 
+	
+#### pv_craze_reverselookup	
+char *pv_craze_reverselookup(MODEL_TYPE T);
+
+
+#### pv_craze_numfields
+
+#### pv_craze_flagtable
+AnalyzeFlag *pv_craze_flagtable(int *N);
+
+#### pv_craze_quiet
+     void pv_craze_quiet()
+     Set pv-craze verbose level to quiet.
+
+#### pv_craze_verbose
+     void pv_craze_verbose()
+     Set pv-craze verbose level to verbose.
+
+#### pv_craze_verbosehead
+     void pv_craze_verbosehead(int set);
+     Enable/Disable header output. If set-value evaluates to true a header is displayed.
+
+#### pv_craze_verboseprogress
+     void pv_craze_verboseprogress(int set);
+     Enable/Disable progress bar. If set-value evaluates to true a progress bar is displayed.  
+
+#### pv_craze_verbosereport
+     void pv_craze_verbosereport(int set);
+     Enable/Disable analysis report printing. If set-value evaluates to true a report is printed.
+
+#### pv_craze_verbosetiming
+     void pv_craze_verbosetiming(int set);
+     Enable/Disable timing report. If set-value evaluates to true a timing information is displayed.
+

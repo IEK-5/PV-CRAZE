@@ -1326,15 +1326,15 @@ void InitParameters(curvepars *P, double *G, double *T, int N,
 double XtoDiodepars(double x[7],double G0,double T0, diodepars *P, MODELSET *S)
 {
 	double I00;
+	// make sure parameters are positive!
+	P->Iph=fabs(x[1]);
 	
-	P->Iph=x[1];
-	
-	I00=x[1]/(exp(x[0]/x[2])-1);
+	I00=fabs(x[1]/(exp(x[0]/x[2])-1));
 	P->I0=I00;
 	
-	P->nkT=x[2];
-	P->Rs=x[3];
-	P->Rsh=1/x[4]; 
+	P->nkT=fabs(x[2]);
+	P->Rs=fabs(x[3]);
+	P->Rsh=fabs(1/x[4]); 
 	
 	// solve the special points
 	P->Isc=Diode_I(0, NULL, *P, S);
@@ -1350,7 +1350,8 @@ diodepars DiodeParsTranslate(double alpha, double Ea, double I00, double G0, dou
 	Po.Iph=P->Iph*(1+alpha*(T-T0))*G/G0;
 	kTT0=K_B*T*T0;
 	TT=T/T0;
-	Po.I0=I00*TT*TT*TT*exp(Ea*(T-T0)/kTT0);
+	// negative Ea is unphysical
+	Po.I0=I00*TT*TT*TT*exp(fabs(Ea)*(T-T0)/kTT0);
 	Po.nkT=P->nkT*TT;
 	// solve the special points
 	Po.Isc=Diode_I(0, NULL, Po, S);
@@ -1446,7 +1447,7 @@ generic_pars DiodeGTFit(curvepars *C, double *G, double *T, int N,
 	(*alpha) = xmin[5];
 	(*T0)    = ARG.T0;
 	(*G0)    = ARG.G0;
-	(*Ea)    = xmin[6];	
+	(*Ea)    = fabs(xmin[6]);	
 	return Diode2GenericPars(D);
 }
 #undef SIMPLSIZE

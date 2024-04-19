@@ -113,7 +113,7 @@ int FS_SelectS(const double *x, const double *y, double *di, char *sel, int N, i
 
 // creates a character array which marks selected elements
 // tries to select M elements, returns number of selected elements
-int FS_Select(const double *x, const double *y, int N, char **SEL, int M)
+int FS_Select(const double *x, const double *y, int N, char **SEL, int M, int off)
 {
 	char *sel;
 	double *di;
@@ -124,6 +124,7 @@ int FS_Select(const double *x, const double *y, int N, char **SEL, int M)
 		(*SEL)=NULL;
 		return 0;
 	}
+	
 	// alocate selection
 	if((sel=Ecalloc(N,sizeof(char)))==NULL)
 	{
@@ -140,7 +141,7 @@ int FS_Select(const double *x, const double *y, int N, char **SEL, int M)
 	}	
 	
 	i=0;
-	s=0;
+	s=off; // initial point
 	while (i<M)
 	{
 		s=FS_SelectS(x,y,di,sel,N,s);
@@ -230,9 +231,10 @@ curvepars * FS_CopyPars(const curvepars *in, int N)
  * Input: irradiance (G) and temperature (T) and esp (C)
  * Output: selected dataset of M elements at irradiance (Gs), temperature (Ts), and with esp (Cs)
  * Elements selected such that the elements are far way from each other in the G-T plane
+ * The offset value sets the first element to choose (i.e. 0 chooses the first in the list)
  */
 int FurthestSampler(const double *G, const double *T, const curvepars *C, 
-                    int N, double **Gs, double **Ts, curvepars **Cs, int M)
+                    int N, double **Gs, double **Ts, curvepars **Cs, int M, int off)
 {
 	double *x, *y; // working copies of X and Y
 	double *xs, *ys; // working copies of selection
@@ -277,12 +279,14 @@ int FurthestSampler(const double *G, const double *T, const curvepars *C,
 		return N;
 	}
 	
+	off=abs(off)%N; // make sure offset is positive and smaller than N
+	
 	// scaling
 	FS_Scaler(x, N);
 	FS_Scaler(y, N);
 	
 	// select data
-	m=FS_Select(x, y, N, &sel, M);
+	m=FS_Select(x, y, N, &sel, M, off);
 	if (m!=M)
 	{
 		free(x);

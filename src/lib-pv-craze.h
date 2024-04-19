@@ -68,13 +68,13 @@ curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N);
 curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
                    double alpha, double beta, double a, double Rs, double kappa);
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N);
+                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off);
                    
 // IEC60891 version 3 (2021)
 curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
                    double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa);
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N);
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off);
                    
 /* **************************************************
  * Diode model G-T translation model
@@ -82,7 +82,7 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 // unit is either 'C' or 'K' and refers to the temperature unit.
 generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G, 
                 double *T, int N, double *alpha, double *Ea, 
-                double Tstd, double Gstd, char unit, int FURTHEST_N);
+                double Tstd, double Gstd, char unit, int FURTHEST_N, int off);
 generic_pars pv_craze_translate_single_diode_GT(generic_pars pars, 
                 double Gstd, double Tstd, double G, double T, 
                 double alpha, double Ea, char unit);

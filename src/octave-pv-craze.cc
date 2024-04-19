@@ -1332,7 +1332,7 @@ Output:\n\
 }
 
 DEFUN_DLD (pvcraze_fit_IEC60891_v2, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, a, Rs, kappa] =} pvcraze_fit_IEC60891_v2 (@var{esp}, T, G, Tstd, Gstd)\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, a, Rs, kappa] =} pvcraze_fit_IEC60891_v2 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]])\n\
 pvcraze_fit_IEC60891_v2 is part of the PV-CRAZE package and fits IEC60891 translation\n\
 coefficients and determines standard test condition curve parameters to best describe \n\
 provided temperature and irradiance dependent curve parameters. Uses the IEC60891 version 2 (2009)\n\n\
@@ -1343,6 +1343,8 @@ Input:\n\
 @item @var{G}: Array with irradiances, one irradiance per row in esp\n\
 @item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
 @item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
+@item @var{furthest_N}: Number of samples to select using furthest sampling\n\
+@item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1364,9 +1366,9 @@ Output:\n\
 	double *TT, *GG;
 	double alpha, beta, a, Rs, kappa, Tstd, Gstd;
 	int N, Nr,Nc;
-	int FN=0;
+	int FN=0,off=0;
 	int i;
-  	if ((nargin != 5)&&(nargin != 6))
+  	if ((nargin < 5)||(nargin > 7))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1378,8 +1380,10 @@ Output:\n\
 	Tstd=args(3).double_value();
 	Gstd=args(4).double_value();
 	
-	if(nargin==6)
+	if((nargin==6)||(nargin==7))
 		FN=args(5).int_value();
+	if(nargin==7)
+		off=args(6).int_value();
 		
 	Nr=Pin.rows();
 	Nc=Pin.cols();
@@ -1442,7 +1446,7 @@ Output:\n\
 		TT[i]=T(i,0);	
 		GG[i]=G(i,0);			
 	}
-	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa,FN);
+	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa,FN,off);
 	
 	free(GG);
 	free(TT);
@@ -1478,7 +1482,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_fit_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N])\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]])\n\
 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
 coefficients and determines standard test condition curve parameters to best describe \n\
 provided temperature and irradiance dependent curve parameters Uses the IEC60891 version 3 (2021)\n\n\
@@ -1489,6 +1493,8 @@ Input:\n\
 @item @var{G}: Array with irradiances, one irradiance per row in esp\n\
 @item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
 @item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
+@item @var{furthest_N}: Number of samples to select using furthest sampling\n\
+@item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1511,9 +1517,9 @@ Output:\n\
 	double *TT, *GG;
 	double alpha, beta, B1, B2, Rs, kappa, Tstd, Gstd;
 	int N, Nr,Nc;
-	int FN=0;
+	int FN=0, off=0;
 	int i;
-  	if ((nargin != 5)&&(nargin != 6))
+  	if ((nargin < 5)||(nargin > 7))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1525,8 +1531,10 @@ Output:\n\
 	Tstd=args(3).double_value();
 	Gstd=args(4).double_value();
 	
-	if(nargin==6)
+	if((nargin==6)||(nargin==7))
 		FN=args(5).int_value();
+	if(nargin==7)
+		off=args(6).int_value();
 		
 	Nr=Pin.rows();
 	Nc=Pin.cols();
@@ -1591,7 +1599,7 @@ Output:\n\
 	
 	}
 	
-	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN);
+	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN, off);
 	
 	free(GG);
 	free(TT);
@@ -2007,7 +2015,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_fit_diode_GT, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{modelpar_std}, alpha, Ea] =} pvcraze_fit_diode_GT (@var{esp}, T, G, Tstd, Gstd [,unit,furthest_N])\n\
+@deftypefn {} {[@var{modelpar_std}, alpha, Ea] =} pvcraze_fit_diode_GT (@var{esp}, T, G, Tstd, Gstd [,unit][,furthest_N [,offset]])\n\
 pvcraze_fit_diode_GT is part of the PV-CRAZE package and fits a diode model \
 to temperature and irradiance dependent extended solar cell parameters \
 It returns diode model parameters at some specified standard temperatre \
@@ -2042,7 +2050,7 @@ Output:\n\
 	int N, Nr,Nc;
 	int i;
 	char unit ='K';
-	int FN=0,ud=0;
+	int FN=0,off=0,ud=0;
   	if ((nargin < 5)&&(nargin >7))
 	{
     	print_usage ();
@@ -2087,13 +2095,14 @@ Output:\n\
 		{
 			if (FN)
 			{
-				fprintf(stderr,"Warning: cannot define furthest sampling N more than once!\n");
-				print_usage ();
-				return octave_value_list ();
+				off=args(i).int_value ();
 			}
-			FN = args(i).int_value ();
-			if (FN<0)
-				FN=0;
+			else
+			{
+				FN = args(i).int_value ();
+				if (FN<0)
+					FN=0;
+			}
 		}
 	}
 				
@@ -2161,7 +2170,7 @@ Output:\n\
 		GG[i]=G(i,0);	
 	}
 	
-	Pstd=pv_craze_fit_diode_GT(Cin, GG,TT, N, &alpha, &Ea,Tstd,Gstd, unit,FN);
+	Pstd=pv_craze_fit_diode_GT(Cin, GG,TT, N, &alpha, &Ea,Tstd,Gstd, unit,FN,off);
 	
 	free(GG);
 	free(TT);

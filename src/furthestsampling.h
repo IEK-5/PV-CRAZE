@@ -24,4 +24,4 @@
  *                                                               *             
  *****************************************************************/ 
 int FurthestSampler(const double *G, const double *T, const curvepars *C, 
-                    int N, double **Gs, double **Ts, curvepars **Cs, int M);
+                    int N, double **Gs, double **Ts, curvepars **Cs, int M, int off);

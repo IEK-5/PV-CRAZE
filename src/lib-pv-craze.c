@@ -985,7 +985,7 @@ MODELSET FitIECMODSET = {
 };
 
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N)
+                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -998,7 +998,7 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 	
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
-	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N,off);
 	if (!n)
 		return Out;
 		
@@ -1021,7 +1021,7 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 
 
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N)
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1033,7 +1033,7 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
-	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N, off);
 	if (!n)
 		return Out;
 		
@@ -1067,7 +1067,7 @@ MODELSET FitDIODEGTMODSET = {
 };
 generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G, 
                 double *T, int N, double *alpha, double *Ea, double Tstd, 
-                double Gstd, char unit, int FURTHEST_N)
+                double Gstd, char unit, int FURTHEST_N, int off)
 {
 	double T0, G0;
 	generic_pars P={0};
@@ -1079,7 +1079,7 @@ generic_pars pv_craze_fit_diode_GT(curvepars *pars, double *G,
 		
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
-	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N);
+	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N, off);
 	if (!n)
 		return P;
 		

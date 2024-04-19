@@ -1060,10 +1060,11 @@ diodepars LevenbergMarquardtOptimizer(curvepars par, diodepars P, MODELSET *S)
 
 	/* define the function to be minimized */
 	fdf_params.h_fvv=1e-6;
-	fdf_params.trs = gsl_multifit_nlinear_trs_lmaccel;
+	fdf_params.trs = gsl_multifit_nlinear_trs_lmaccel; // with geodesic accell
+	//fdf_params.trs = gsl_multifit_nlinear_trs_lm; // without geodesic accell
 	fdf.f = RHS_gsl;
-	fdf.df = System_gsl;   /* set to NULL for finite-difference Jacobian */
-	fdf.fvv = NULL;     /* not using geodesic acceleration */
+	fdf.df = System_gsl;   
+	fdf.fvv = NULL;     
 	fdf.n = n;
 	fdf.p = p;
 	fdf.params = &par;

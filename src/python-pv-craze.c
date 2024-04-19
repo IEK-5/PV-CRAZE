@@ -1427,7 +1427,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=1, beta=1, a=1, Rs=1, kappa=1, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, j, fN=0;
+	int N, M, n, m, i, j, fN=0, off=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
 	
@@ -1438,10 +1438,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		"Tstd",
 		"Gstd",
 		"furthest_N",
+		"offset",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1, &Tstd, &Gstd, &fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddii",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1, &Tstd, &Gstd, &fN, &off)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1455,7 +1456,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		
 	if (!IsDoubleArray(epars_in))
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_fit_IEC60891_v2 expects an esp array of double type");
 		return NULL;
 	}
 	n=epars_in->dimensions[0];
@@ -1521,7 +1522,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
 	}
-	out=pv_craze_fit_IEC60891_v2(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &a, &Rs, &kappa, fN);
+	out=pv_craze_fit_IEC60891_v2(in, _G1, _T1, N, Tstd, Gstd,&alpha, &beta, &a, &Rs, &kappa, fN,off);
 	/* clean up*/
 	free(in);
 	free(_G1);	
@@ -1735,7 +1736,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=0, beta=0, B1=0, B2=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, fN=0;
+	int N, M, n, m, i, fN=0, off=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
 	int vh=0;
@@ -1747,10 +1748,11 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		"Tstd",
 		"Gstd",
 		"furthest_N",
+		"offset",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddi",kwlist,&PyArray_Type, &epars_in, &PyArray_Type, &T1, &PyArray_Type, &G1, &Tstd, &Gstd,&fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddii",kwlist,&PyArray_Type, &epars_in, &PyArray_Type, &T1, &PyArray_Type, &G1, &Tstd, &Gstd,&fN,&off)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -1830,7 +1832,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
 		//printf("%d %e %e %e %e %e %e %e %e %e %e %e %e\n", i, _G1[i], _T1[i], in[i].Voc,in[i].Isc,in[i].Vmpp,in[i].Impp,in[i].Vqmp1,in[i].Iqmp1,in[i].Vqmp2,in[i].Iqmp2,in[i].Gsc,in[i].Roc);
 	}
-	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, fN);
+	out=pv_craze_fit_IEC60891_v3(in, _G1, _T1, N, Tstd, Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, fN,off);
 	/* clean up*/
 	free(in);
 	free(_G1);	
@@ -2019,7 +2021,7 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	PyArrayObject *G1, *T1;
 	double alpha=0, Ea=0, Tstd=298.15, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, fN=0;
+	int N, M, n, m, i, fN=0, off=0;
 	curvepars *in;
 	generic_pars out;
 	npy_intp ArrayDim[1];
@@ -2038,10 +2040,11 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 		"Gstd",
 		"Tunit",
 		"furthest_N",
+		"offset",
 		NULL
 	};
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddsi",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1,&Tstd, &Gstd,&sunit,&fN)) 
+	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O!O!|ddsii",kwlist,&PyArray_Type, &epars_in,&PyArray_Type, &T1,&PyArray_Type, &G1,&Tstd, &Gstd,&sunit,&fN,&off)) 
 		return NULL;
 	if(NULL==epars_in) 
 		return NULL;
@@ -2140,7 +2143,7 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 		_G1[i]=*(double *)(G1->data+i*G1->strides[0]);
 		_T1[i]=*(double *)(T1->data+i*T1->strides[0]);
 	}
-	out=pv_craze_fit_diode_GT(in, _G1, _T1, N, &alpha, &Ea,Tstd,Gstd, unit,fN);
+	out=pv_craze_fit_diode_GT(in, _G1, _T1, N, &alpha, &Ea,Tstd,Gstd, unit,fN,off);
 	/* clean up*/
 	free(in);
 	free(_G1);	

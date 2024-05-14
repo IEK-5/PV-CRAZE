@@ -34,6 +34,7 @@ ProcessSettings pv_craze_initsettings();
 void pv_craze_addmodeltosettings(ProcessSettings *S, const char *str);
 void pv_craze_freesettings(ProcessSettings *S);
 void pv_craze_freeprop(CurveProp *P);
+void pv_craze_free(void *d);
 
 // verbosity controll
 void pv_craze_verbose(); // all verbose

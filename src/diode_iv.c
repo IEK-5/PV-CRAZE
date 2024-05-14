@@ -814,7 +814,7 @@ void RHS(double b[5], double x[5], curvepars par)
 #undef Voc
 #undef Vmpp
 #undef Gsc
-double DPNLRMSErr(double x[], void *args) // neldel mead error function, converts 10 parameter double vector to BPar
+double DPNLRMSErr(double x[], void *args) // neldel mead error function
 {
 	double b[5], xx[5], E;
 	curvepars par;

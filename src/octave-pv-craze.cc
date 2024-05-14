@@ -285,7 +285,7 @@ Output:\n\
 		
 		err(i,0)=(bool)T[i].ERR;
 	}
-	free(T);
+	pv_craze_free(T); // allocated in pv_craze
 	i=0;
 	if (nargout>i)
 		retval(i++)=octave_value(FF);
@@ -529,7 +529,7 @@ Output:\n\
 		pv_craze_freeprop(&Prop[i]);
 	}
 	free(C);
-	free(Prop);
+	pv_craze_free(Prop);
 	pv_craze_freesettings(&Set);
 	
 	
@@ -645,7 +645,7 @@ Output:\n\
 			pv_craze_freeprop(&P[i]);
 		}
 		free(pars);
-		free(P);
+		pv_craze_free(P);
 	}
 	pv_craze_freesettings(&Set);
 	
@@ -771,7 +771,7 @@ Output:\n\
 		if (C[i].P)
 			free(C[i].P);
 	}
-	free(C);
+	pv_craze_free(C);
 
 	retval(0)=octave_value(IV);
 	return retval;	
@@ -1005,7 +1005,7 @@ Output:\n\
 	{
 		D(i%Nr,i/Nr)=DD[i];
 	}
-	free(DD);
+	pv_craze_free(DD);
 
 	retval(0)=octave_value(D);
 	return retval;	
@@ -1158,7 +1158,7 @@ Output:\n\
 		free(C[i].P);
 	}
 	free(C);
-	free(Co);
+	pv_craze_free(Co);
 
 	retval(0)=octave_value(IVo);
 	return retval;	
@@ -1813,7 +1813,7 @@ Output:\n\
 		Pout(i,8)=Cout[i].Gsc;
 		Pout(i,9)=Cout[i].Roc;	
 	}	
-	free(Cout);	
+	pv_craze_free(Cout);	
 
 	retval(0)=octave_value(Pout);
 	return retval;	
@@ -2006,7 +2006,7 @@ Output:\n\
 		Pout(i,8)=Cout[i].Gsc;
 		Pout(i,9)=Cout[i].Roc;	
 	}	
-	free(Cout);	
+	pv_craze_free(Cout);	
 
 	retval(0)=octave_value(Pout);
 	return retval;	
@@ -2347,7 +2347,7 @@ Output:\n\
 		Pout(i,9) =Pt[i].pars[8];	
 		Pout(i,10)=Pt[i].pars[9];	
 	}	
-	free(Pt);	
+	pv_craze_free(Pt);	
 
 	retval(0)=octave_value(Pout);
 	return retval;	

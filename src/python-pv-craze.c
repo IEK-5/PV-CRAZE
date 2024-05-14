@@ -256,6 +256,7 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 		PyArray_SETITEM(err, PyArray_GETPTR1(err, i), PyBool_FromLong((long)T[i].ERR));
 		PyList_SetItem(messages, i, PyUnicode_FromString(T[i].message));
 	}
+	pv_craze_free(T);
 	return Py_BuildValue("{s:O,s:O,s:O}", "flags", flags,"messages", messages,"err",err);
 }
 
@@ -430,7 +431,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	}
 	Ns=S.L.N;
 	pv_craze_freesettings(&S);
-	free(P);
+	pv_craze_free(P);
 	free(C);
 	if (Ns>0)
 		return Py_BuildValue("{s:O,s:O,s:O,s:O}", "esp", epars,"flags", flags, "modelpar", genlist, "err", E);
@@ -558,7 +559,7 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	for(i=0; i<n; i++)
 		pv_craze_freeprop(&P[i]);
 	pv_craze_freesettings(&S);
-	free(P);
+	pv_craze_free(P);
 	free(pars);
 
 	return Py_BuildValue("{s:O,s:O}", "modelpar", genlist,"err", fiterrlist);
@@ -702,7 +703,7 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 				PyArray_SETITEM(py_curve_out, PyArray_GETPTR2(py_curve_out, l, 0), PyFloat_FromDouble(curve_out[k].P[l].x));
 				PyArray_SETITEM(py_curve_out, PyArray_GETPTR2(py_curve_out, l, 1), PyFloat_FromDouble(curve_out[k].P[l].y));
 			}
-			free(curve_out[k].P);
+			pv_craze_free(curve_out[k].P); // use pv-craze free as pv-craze allocated this memory
 			k++;
 			PyList_SetItem(py_curveList_out, i, (PyObject *)py_curve_out); 
 		}
@@ -710,7 +711,7 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	}
 	free(len);
 	free(genpars_in);
-	free(curve_out);
+	pv_craze_free(curve_out);
 
 	return Py_BuildValue("O", py_curveListList_out);
 }
@@ -979,7 +980,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		E=pv_craze_error(genpars_in, curve_in, n);
 		for (j=0;j<n;j++)
 			PyArray_SETITEM(py_error, PyArray_GETPTR2(py_error, j, i), PyFloat_FromDouble(E[j]));	
-		free(E);
+		pv_craze_free(E);// pvcraze allocated E
 	}
 	for (j=0;j<n;j++)
 		free(curve_in[j].P);
@@ -1417,7 +1418,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 8), PyFloat_FromDouble(out[i].Gsc));
 		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 9), PyFloat_FromDouble(out[i].Roc));		
 	}
-	free(out);
+	pv_craze_free(out); // pvcraze allocated out
 	return Py_BuildValue("O", epars_out);
 } 
 
@@ -1725,7 +1726,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 8), PyFloat_FromDouble(out[i].Gsc));
 		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 9), PyFloat_FromDouble(out[i].Roc));		
 	}
-	free(out);
+	pv_craze_free(out);
 	return Py_BuildValue("O", epars_out);
 } 
 
@@ -2011,7 +2012,7 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 			PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, j+1), PyFloat_FromDouble(out[i].pars[j]));	
 		
 	}
-	free(out);
+	pv_craze_free(out);
 	return Py_BuildValue("O", mpars_out);
 } 
 

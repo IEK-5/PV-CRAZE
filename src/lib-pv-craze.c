@@ -300,6 +300,11 @@ void pv_craze_freesettings(ProcessSettings *S)
 {
 	FreeList(&(S->L));
 }
+// export the library's own free version
+void pv_craze_free(void *d)
+{
+	free(d);
+}
 
 // top level analysis routine
 // takes a single curve and returns a CurveProp given some settings
@@ -369,7 +374,7 @@ AnalyzeFlag *pv_craze_flagtable(int *N)
 	int i;
 	AnalyzeFlag *A;
 	(*N)=0;
-	if((A=Emalloc(NIVF*sizeof(CurveProp)))==NULL)
+	if((A=Emalloc(NIVF*sizeof(AnalyzeFlag)))==NULL)
 	{
 		fprintf(stderr,"INFO: Memory allocation failure in FlagTable, Flag Table cannot be produced\n");
 		return NULL;

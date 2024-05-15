@@ -369,6 +369,7 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 	AnalyzeFlag *T;
 	int i,N;
 	PyObject *messages;
+	PyObject *ret;
 	PyArrayObject *flags;
 	PyArrayObject *err;
 	PyObject *X;
@@ -399,7 +400,11 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 		PyList_SetItem(messages, i, X);
 	}
 	pv_craze_free(T);
-	return Py_BuildValue("{s:O,s:O,s:O}", "flags", flags,"messages", messages,"err",err);
+	ret=Py_BuildValue("{s:O,s:O,s:O}", "flags", flags,"messages", messages,"err",err);
+	Py_DECREF(flags);
+	Py_DECREF(messages);
+	Py_DECREF(err);	
+	return ret;
 }
 
 npy_intp PARLEN=11;
@@ -417,6 +422,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	PyArrayObject *flags, *E, *epars; // output arrays
 	PyArrayObject *genpars; // generic parameter values for all IV's
 	PyObject *genlist;		// list of generic parameter arrays, one for every model
+	PyObject *ret;
 	
 	// input objects
 	PyObject *py_curveList;
@@ -567,8 +573,16 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	pv_craze_free(P);
 	free(C);
 	if (Ns>0)
-		return Py_BuildValue("{s:O,s:O,s:O,s:O}", "esp", epars,"flags", flags, "modelpar", genlist, "err", E);
-	return Py_BuildValue("{s:O,s:O}", "esp", epars,"flags", flags);
+	{
+		ret=Py_BuildValue("{s:O,s:O,s:O,s:O}", "esp", epars,"flags", flags, "modelpar", genlist, "err", E);
+		Py_DECREF(genlist);
+		Py_DECREF(E);
+	}
+	else
+		ret=Py_BuildValue("{s:O,s:O}", "esp", epars,"flags", flags);
+	Py_DECREF(epars);
+	Py_DECREF(flags);
+	return ret;
 	
 }
 
@@ -592,11 +606,12 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	
 	// internal
 	PyObject * str;  
+	PyObject * ret; 
 	ProcessSettings S;
 	CurveProp *P;
 	curvepars *pars;
 	npy_intp ArrayDim[2]={0};
-	int n,m, Ns=0, i, j, k;
+	int n, Ns=0, i, j, k;
 
 	static char *kwlist[] = {
 		"esp",
@@ -631,7 +646,6 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 		
 	// prepare the curves
 	n=epars->dimensions[0];
-	m=epars->dimensions[1];
 	if (!IsDoubleArray(epars,-1,10))
 		return NULL;
 	if ((pars=malloc(n*sizeof(curvepars)))==NULL)
@@ -690,7 +704,10 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	pv_craze_free(P);
 	free(pars);
 
-	return Py_BuildValue("{s:O,s:O}", "modelpar", genlist,"err", fiterrlist);
+	ret=Py_BuildValue("{s:O,s:O}", "modelpar", genlist,"err", fiterrlist);
+	Py_DECREF(genlist);
+	Py_DECREF(fiterrlist);
+	return ret;
 }
 
 
@@ -826,7 +843,7 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	free(genpars_in);
 	pv_craze_free(curve_out);
 
-	return Py_BuildValue("O", py_curveListList_out);
+	return py_curveListList_out;
 }
 
 /* model pars:
@@ -862,7 +879,6 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
 		if (!IsDoubleArray(py_genpars,-1,-1))
 		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelpars expects an model parameter arrays of double type");
 			Py_XDECREF(py_solparsList_out);						
 			return NULL;
 		}
@@ -924,7 +940,7 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 		PyList_SetItem(py_solparsList_out, j, (PyObject *)py_solpars_out); 
 		       
 	}
-	return Py_BuildValue("O", py_solparsList_out);
+	return py_solparsList_out;
 }
 /* py_pv_craze_error
  * Takes a list of generic parameter arrays and a list of IV curves
@@ -942,7 +958,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	generic_pars *genpars_in;
 	curve *curve_in;
 	double *E;
-	int Nm, Niv, i, j, l, n, m;
+	int Nm, Niv, i, j, l, n=0, m;
 	npy_intp ArrayDim[2]={0};
 
 	static char *kwlist[] = {
@@ -1080,7 +1096,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	free(genpars_in);
 	free(curve_in);
 
-	return Py_BuildValue("O", py_error);
+	return (PyObject *)py_error;
 
 }
 
@@ -1207,7 +1223,7 @@ static PyObject *py_pv_craze_iv(PyObject *self, PyObject *args, PyObject *kwargs
 	else
 		return NULL;
 	
-	return Py_BuildValue("O", py_I);
+	return (PyObject *)py_I;
 }
 
 static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -1333,7 +1349,7 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 	}
 	else
 		return NULL;
-	return Py_BuildValue("O", py_V);
+	return (PyObject *)py_V;
 }
 
 
@@ -1494,13 +1510,14 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 		double_into_2darray(epars_out, i, 9, out[i].Roc);
 	}
 	pv_craze_free(out); // pvcraze allocated out
-	return Py_BuildValue("O", epars_out);
+	return (PyObject *)epars_out;
 } 
 
 static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	PyArrayObject *epars_in, *epars_out;
 	PyArrayObject *G1, *T1;
+	PyObject *ret;
 	double alpha=1, beta=1, a=1, Rs=1, kappa=1, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
 	int N, n, i, fN=0, off=0;
@@ -1606,10 +1623,10 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	double_into_1darray(epars_out, 9, out.Roc);
 	
 	
-	return Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d}",
-		"esp_std", epars_out, "alpha", alpha,
-		"beta", beta, "a", a, 
-		"Rs", Rs, "kappa", kappa);
+	ret=Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d}","esp_std", epars_out, "alpha", alpha,
+		"beta", beta, "a", a, "Rs", Rs, "kappa", kappa);
+	Py_DECREF(epars_out);
+	return ret;
 } 
 	
 static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -1768,7 +1785,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 		double_into_2darray(epars_out, i, 9, out[i].Roc);
 	}
 	pv_craze_free(out);
-	return Py_BuildValue("O", epars_out);
+	return (PyObject *)epars_out;
 } 
 
 
@@ -1776,6 +1793,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 {
 	PyArrayObject *epars_in, *epars_out;
 	PyArrayObject *G1, *T1;
+	PyObject *ret;
 	double alpha=0, beta=0, B1=0, B2=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
 	int N, n, i, fN=0, off=0;
@@ -1879,10 +1897,12 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	double_into_1darray(epars_out, 9, out.Roc);
 	
 	
-	return Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d,s:d}",
+	ret=Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d,s:d}",
 		"esp_std", epars_out, "alpha", alpha,
 		"beta", beta, "B1", B1, "B2", B2, 
 		"Rs", Rs, "kappa", kappa);
+	Py_DECREF(epars_out);
+	return ret;
 } 
 
 static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -2022,12 +2042,13 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 			double_into_2darray(mpars_out, i, j+1, out[i].pars[j]);
 	}
 	pv_craze_free(out);
-	return Py_BuildValue("O", mpars_out);
+	return (PyObject *)mpars_out;
 } 
 
 static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObject *kwargs)
 {
 	PyArrayObject *epars_in, *mpars_out;
+	PyObject *ret;
 	PyArrayObject *G1, *T1;
 	double alpha=0, Ea=0, Tstd=298.15, Gstd=1000;
 	double *_G1, *_T1;
@@ -2151,7 +2172,7 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	for(i=0; i<10; i++)
 		double_into_1darray(mpars_out, i+1, out.pars[i]);
 	
-	
-	return Py_BuildValue("{s:O,s:d,s:d}",
-		"modelpar", mpars_out, "alpha", alpha,"Ea", Ea);
+	ret=Py_BuildValue("{s:O,s:d,s:d}","modelpar", mpars_out, "alpha", alpha,"Ea", Ea);
+	Py_DECREF(mpars_out);
+	return ret;
 } 

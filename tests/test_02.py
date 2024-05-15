@@ -18,6 +18,8 @@ IV.append(iv)
 print(IV)
 B=pvcraze.analyze(IV)
 ref=np.array([256,0,2097264,136356976,136356976]).reshape(-1,1)
+print(B['flags'])
+print(ref)
 r=B['flags']-ref
 f=(r>0.5)
 r=sum(f)

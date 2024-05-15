@@ -106,20 +106,154 @@ static struct PyModuleDef python_pvcraze = {
 	pv_craze_methods
 };
 
-int IsDoubleArray(PyArrayObject *Array)
+int IsDoubleArray(PyArrayObject *Array, int n, int m)
 {
 	int typ;
+	int SIZE=0;
+	
+	if (NULL==Array)
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: expect a numpy array with double type data");
+		return 0;	
+	}
+	
 	if (!PyObject_IsInstance((PyObject *) Array, (PyObject *)&PyArray_Type))
+	{
+		PyErr_SetString(PyExc_ValueError, "Error: expect a numpy array with double type data");
 		return 0;
+	}
+	if (n>=0)
+		SIZE|=1;
+	if (m>=0)
+		SIZE|=2;
 	typ=PyArray_TYPE(Array);
 	switch(typ)
 	{
 		case NPY_DOUBLE:
-			return 1;
+			switch(SIZE)
+			{
+				case 0:
+					return 1;
+				case 1:
+					if (Array->dimensions[0]==n)
+						return 1;
+					else
+						PyErr_Format(PyExc_ValueError, "Error: expect a numpy array with dimension 0 length %d",n);
+					
+					break;
+				case 2:
+					if (Array->dimensions[1]==m)
+						return 1;
+					else
+						PyErr_Format(PyExc_ValueError, "Error: expect a numpy array with dimension 1 length %d",m);
+					break;
+				case 3:
+					if ((Array->dimensions[0]==n) &&(Array->dimensions[1]==m))
+						return 1;
+					else
+						PyErr_Format(PyExc_ValueError, "Error: expect a numpy array with size %d x %d",n,m);
+					break;
+				default:
+					break;
+			}
+			return 0;
 		default:
+			PyErr_SetString(PyExc_ValueError, "Error: expect a numpy array with double type data");
 			return 0;
 	}
 }
+
+void double_into_2darray(PyArrayObject *np_array, npy_intp i, npy_intp j, double value)
+{
+    if (!PyArray_Check(np_array))
+    {
+        PyErr_SetString(PyExc_TypeError, "Input must be a numpy.ndarray.");
+        return;
+    }
+    if (PyArray_TYPE(np_array) != NPY_DOUBLE)
+    {
+        PyErr_SetString(PyExc_TypeError, "Array must be of type np.float64 (double).");
+        return;
+    }
+    if (PyArray_NDIM(np_array) != 2)
+    {
+        PyErr_SetString(PyExc_ValueError, "Array must be 2-dimensional.");
+        return;
+    }
+    // Ensure we have a writable array and not a read-only view or such.
+    if (!PyArray_ISWRITEABLE(np_array)) {
+        PyErr_SetString(PyExc_RuntimeError, "Array is not writable.");
+        return;
+    }
+
+    // Get a pointer to the element at position (i, j)
+    double *elem = (double *)PyArray_GETPTR2(np_array, i, j);
+
+    // Insert the value
+    *elem = value;
+}
+
+void int_into_2darray(PyArrayObject *np_array, npy_intp i, npy_intp j, int value)
+{
+    if (!PyArray_Check(np_array))
+    {
+        PyErr_SetString(PyExc_TypeError, "Input must be a numpy.ndarray.");
+        return;
+    }
+    if (PyArray_TYPE(np_array) != NPY_INT)
+    {
+        PyErr_SetString(PyExc_TypeError, "Array must be of type np.int32 (int).");
+        return;
+    }
+    if (PyArray_NDIM(np_array) != 2)
+    {
+        PyErr_SetString(PyExc_ValueError, "Array must be 2-dimensional.");
+        return;
+    }
+    // Ensure we have a writable array and not a read-only view or such.
+    if (!PyArray_ISWRITEABLE(np_array)) {
+        PyErr_SetString(PyExc_RuntimeError, "Array is not writable.");
+        return;
+    }
+
+    // Get a pointer to the element at position (i, j)
+    int *elem = (int *)PyArray_GETPTR2(np_array, i, j);
+
+    // Insert the value
+    *elem = value;
+}
+
+void double_into_1darray(PyArrayObject *np_array, npy_intp i, double value)
+{
+    if (!PyArray_Check(np_array))
+    {
+        PyErr_SetString(PyExc_TypeError, "Input must be a numpy.ndarray.");
+        return;
+    }
+    if (PyArray_TYPE(np_array) != NPY_DOUBLE)
+    {
+        PyErr_SetString(PyExc_TypeError, "Array must be of type np.float64 (double).");
+        return;
+    }
+    if (PyArray_NDIM(np_array) != 1)
+    {
+        PyErr_SetString(PyExc_ValueError, "Array must be 2-dimensional.");
+        return;
+    }
+    // Ensure we have a writable array and not a read-only view or such.
+    if (!PyArray_ISWRITEABLE(np_array)) {
+        PyErr_SetString(PyExc_RuntimeError, "Array is not writable.");
+        return;
+    }
+
+    // Get a pointer to the element at position (i, j)
+    double *elem = (double *)PyArray_GETPTR1(np_array, i);
+
+    // Insert the value
+    *elem = value;
+}
+
+
 
 PyMODINIT_FUNC PyInit_pvcraze(void){
 	PyObject *module = PyModule_Create(&python_pvcraze);
@@ -149,7 +283,7 @@ static PyObject *py_pv_craze_verbose(PyObject *self, PyObject *noargs)
 static PyObject *py_pv_craze_verbose_set_report(PyObject *self, PyObject *args)
 {
 	int b=-1; 
-	MODEL_TYPE T;
+	
 	if(!PyArg_ParseTuple(args, "i", &b))
 		return NULL;
 	if(b<0)
@@ -160,7 +294,7 @@ static PyObject *py_pv_craze_verbose_set_report(PyObject *self, PyObject *args)
 static PyObject *py_pv_craze_verbose_set_progress(PyObject *self, PyObject *args)
 {
 	int b=-1; 
-	MODEL_TYPE T;
+	
 	if(!PyArg_ParseTuple(args, "i", &b))
 		return NULL;
 	if(b<0)
@@ -171,7 +305,7 @@ static PyObject *py_pv_craze_verbose_set_progress(PyObject *self, PyObject *args
 static PyObject *py_pv_craze_verbose_set_timing(PyObject *self, PyObject *args)
 {
 	int b=-1; 
-	MODEL_TYPE T;
+	
 	if(!PyArg_ParseTuple(args, "i", &b))
 		return NULL;
 	if(b<0)
@@ -182,7 +316,7 @@ static PyObject *py_pv_craze_verbose_set_timing(PyObject *self, PyObject *args)
 static PyObject *py_pv_craze_verbose_set_head(PyObject *self, PyObject *args)
 {
 	int b=-1; 
-	MODEL_TYPE T;
+	
 	if(!PyArg_ParseTuple(args, "i", &b))
 		return NULL;
 	if(b<0)
@@ -204,7 +338,7 @@ static PyObject *py_pv_craze_LookupModel(PyObject *self, PyObject *args)
 	T=pv_craze_lookupmodel(str);
 	if (T==M_NONE)
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: model does not exist");
+		PyErr_Format(PyExc_ValueError, "Error: model \"%s\"does not exist",str);
 		return NULL;
 	}
 	return PyLong_FromLong((long)T);
@@ -224,7 +358,7 @@ static PyObject *py_pv_craze_ReverseLookup(PyObject *self, PyObject *args)
 	str=pv_craze_reverselookup((MODEL_TYPE)a);
 	if (str==NULL)
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: model does not exist");
+		PyErr_Format(PyExc_ValueError, "Error: model with ID %d does not exist",a);
 		return NULL;
 	}
 	return Py_BuildValue("z", str);
@@ -237,12 +371,13 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 	PyObject *messages;
 	PyArrayObject *flags;
 	PyArrayObject *err;
+	PyObject *X;
 	npy_intp ArrayDim[1]={0};
 	
 	T=pv_craze_flagtable(&N);
 	if (!T)
 	{
-		PyErr_SetString(PyExc_ValueError, "Error: could not generate a flag table, pv-crze appears to be broken!");
+		PyErr_SetString(PyExc_ValueError, "Error: could not generate a flag table, pv-craze appears to be broken!");
 		return NULL;
 	}
 	ArrayDim[0]=N;
@@ -252,9 +387,16 @@ static PyObject *py_pv_craze_FlagTable(PyObject *self, PyObject *noargs)
 	
 	for (i=0;i<N;i++)
 	{
-		PyArray_SETITEM(flags, PyArray_GETPTR1(flags, i), PyLong_FromLong((long)T[i].FLAG));
-		PyArray_SETITEM(err, PyArray_GETPTR1(err, i), PyBool_FromLong((long)T[i].ERR));
-		PyList_SetItem(messages, i, PyUnicode_FromString(T[i].message));
+		X=PyLong_FromLong((long)T[i].FLAG);
+		PyArray_SETITEM(flags, PyArray_GETPTR1(flags, i), X);
+		Py_DECREF(X);		
+		
+		X=PyBool_FromLong((long)T[i].ERR);
+		PyArray_SETITEM(err, PyArray_GETPTR1(err, i), X);
+		Py_DECREF(X);	
+		
+		X=PyUnicode_FromString(T[i].message);
+		PyList_SetItem(messages, i, X);
 	}
 	pv_craze_free(T);
 	return Py_BuildValue("{s:O,s:O,s:O}", "flags", flags,"messages", messages,"err",err);
@@ -288,7 +430,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	curve *C;
 	npy_intp ArrayDim[2]={0};
 	double eps=-1, mppdv=-1,mppdi=-1,scdv=-1,ocdi=-1;
-	int n,m, Ns=0, i, j, k, spike=0, N, am=-1;
+	int n, Ns=0, i, j, k, spike=0, N, am=-1;
 	int resample=-1;
 
 	static char *kwlist[] = {
@@ -308,7 +450,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O!|O!Cdiddddi",kwlist,&PyList_Type, &py_curveList, &PyList_Type, &StringList, &am, &eps, &spike, &mppdv, &mppdi, &scdv, &ocdi, &resample)) 
 		return NULL;
 	if(NULL==py_curveList) 
-		return NULL;	
+		return NULL;
 		
 	S=pv_craze_initsettings();
 	if (eps>0)
@@ -351,18 +493,9 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	for(j=0; j<N; j++)
 	{
 		py_curve=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)j);
-		if (!IsDoubleArray(py_curve))
-		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze expects a list of numpy arrays with double type data");
+		if (!IsDoubleArray(py_curve,-1,2))
 			return NULL;
-		}
 		n=py_curve->dimensions[0];
-		m=py_curve->dimensions[1];
-		if (m!=2)
-		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze expects IVs consisting of two columns (voltage,current)");
-			return NULL;
-		}
 		if ((C[j].P=malloc(n*sizeof(point)))==NULL)
 		{
 			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
@@ -401,27 +534,27 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	
 	for (i=0; i<N; i++)
 	{
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 0), PyFloat_FromDouble(P[i].par.Voc));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 1), PyFloat_FromDouble(P[i].par.Isc));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 2), PyFloat_FromDouble(P[i].par.Vmpp));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 3), PyFloat_FromDouble(P[i].par.Impp));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 4), PyFloat_FromDouble(P[i].par.Vqmp1));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 5), PyFloat_FromDouble(P[i].par.Iqmp1));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 6), PyFloat_FromDouble(P[i].par.Vqmp2));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 7), PyFloat_FromDouble(P[i].par.Iqmp2));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 8), PyFloat_FromDouble(P[i].par.Gsc));
-		PyArray_SETITEM(epars, PyArray_GETPTR2(epars, i, 9), PyFloat_FromDouble(P[i].par.Roc));
+		double_into_2darray(epars, i, 0, P[i].par.Voc);
+		double_into_2darray(epars, i, 1, P[i].par.Isc);
+		double_into_2darray(epars, i, 2, P[i].par.Vmpp);
+		double_into_2darray(epars, i, 3, P[i].par.Impp);
+		double_into_2darray(epars, i, 4, P[i].par.Vqmp1);
+		double_into_2darray(epars, i, 5, P[i].par.Iqmp1);
+		double_into_2darray(epars, i, 6, P[i].par.Vqmp2);
+		double_into_2darray(epars, i, 7, P[i].par.Iqmp2);
+		double_into_2darray(epars, i, 8, P[i].par.Gsc);
+		double_into_2darray(epars, i, 9, P[i].par.Roc);
 		
-		PyArray_SETITEM(flags, PyArray_GETPTR2(flags, i, 0), PyLong_FromLong((long)P[i].A_FLAGS));
 		
+		int_into_2darray(flags, i, 0, P[i].A_FLAGS);
 		for (k=0;k<P[i].N;k++)
 		{
 			// fetch next model parameters
-			genpars=(PyArrayObject *) PyList_GetItem(genlist, (Py_ssize_t)k);			
-			PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, i, 0), PyFloat_FromDouble((double)P[i].P[k].TYPE));
+			genpars=(PyArrayObject *) PyList_GetItem(genlist, (Py_ssize_t)k);	
+			double_into_2darray(genpars, i, 0, (double)P[i].P[k].TYPE);
 			for(j=0; j<10; j++)
-				PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, i, j+1), PyFloat_FromDouble(P[i].P[k].pars[j]));	
-			PyArray_SETITEM(E, PyArray_GETPTR2(E, i, k), PyFloat_FromDouble(P[i].E[k]));	
+				double_into_2darray(genpars, i, j+1, P[i].P[k].pars[j]);
+			double_into_2darray(E, i, k,P[i].E[k]);
 		}  
 	}
 	for(i=0; i<N; i++)
@@ -499,16 +632,8 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	// prepare the curves
 	n=epars->dimensions[0];
 	m=epars->dimensions[1];
-	if (!IsDoubleArray(epars))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelfit expects an esp array of double type");
+	if (!IsDoubleArray(epars,-1,10))
 		return NULL;
-	}
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: wrong esp array format, expect an n x 10 array");
-		return NULL;
-	}
 	if ((pars=malloc(n*sizeof(curvepars)))==NULL)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
@@ -544,14 +669,17 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 		for (k=0; k<n; k++)
 		{	
 			// model parameters
-			PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, k, 0), PyFloat_FromDouble((double)P[k].P[i].TYPE));
+			double_into_2darray(genpars, k, 0, (double)P[k].P[i].TYPE);
+			
 			for(j=0; j<10; j++)
-				PyArray_SETITEM(genpars, PyArray_GETPTR2(genpars, k, j+1), PyFloat_FromDouble(P[k].P[i].pars[j]));	
-			// fit error	
-			PyArray_SETITEM(fiterr, PyArray_GETPTR1(fiterr, k), PyFloat_FromDouble(P[k].E[i]));		
+				double_into_2darray(genpars, k, j+1, P[k].P[i].pars[j]);
+				
+			// fit error
+			double_into_1darray(fiterr, k, P[k].E[i]);
 		}  
 		
-		PyList_SetItem(genlist, i, (PyObject *)genpars);			
+		PyList_SetItem(genlist, i, (PyObject *)genpars);
+				
 		PyList_SetItem(fiterrlist, i, (PyObject *)fiterr);
 	}
 	
@@ -580,7 +708,6 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	curve *curve_out;
 	generic_pars *genpars_in;
 	int n,m, Na=-1, M, Niv, i, j, k, l;
-	int vh=0, vp=0;
 	int *len;
 	npy_intp ArrayDim[2]={0};
 
@@ -620,22 +747,8 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 		// I first cast it to an array object and then check whether it is one
 		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
-		if (!IsDoubleArray(py_genpars))
-		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_curvemodel expects an model parameter arrays of double type");
+		if (!IsDoubleArray(py_genpars,-1,-1))
 			return NULL;
-		}
-		if (py_genpars==NULL)
-		{
-			free(genpars_in);
-			return NULL;	
-		}
-		if (!PyObject_IsInstance((PyObject *) py_genpars, (PyObject *)&PyArray_Type))
-		{
-			free(genpars_in);
-			PyErr_SetString(PyExc_ValueError, "Error: expect a list of numpy arrays");
-			return NULL;	
-		}
 		n=py_genpars->dimensions[0];
 		m=py_genpars->dimensions[1];
 		len[j]=n;
@@ -700,8 +813,8 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 			py_curve_out=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
 			for(l=0; l<curve_out[k].N; l++)
 			{
-				PyArray_SETITEM(py_curve_out, PyArray_GETPTR2(py_curve_out, l, 0), PyFloat_FromDouble(curve_out[k].P[l].x));
-				PyArray_SETITEM(py_curve_out, PyArray_GETPTR2(py_curve_out, l, 1), PyFloat_FromDouble(curve_out[k].P[l].y));
+				double_into_2darray(py_curve_out, l, 0, curve_out[k].P[l].x);
+				double_into_2darray(py_curve_out, l, 1, curve_out[k].P[l].y);
 			}
 			pv_craze_free(curve_out[k].P); // use pv-craze free as pv-craze allocated this memory
 			k++;
@@ -728,7 +841,7 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 	generic_pars genpars_in;
 	
 	
-	int n,m, M, i, j, k, l;
+	int n,m, M, i, j, l;
 	npy_intp ArrayDim[2]={0};
 
 	static char *kwlist[] = {
@@ -746,22 +859,12 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 	
 	for(j=0; j<M; j++)
 	{
-		// I first cast it to an array object and then check whether it is one
-		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
-		if (!IsDoubleArray(py_genpars))
+		if (!IsDoubleArray(py_genpars,-1,-1))
 		{
 			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelpars expects an model parameter arrays of double type");
+			Py_XDECREF(py_solparsList_out);						
 			return NULL;
-		}
-		if (py_genpars==NULL)
-		{
-			return NULL;	
-		}
-		if (!PyObject_IsInstance((PyObject *)py_genpars, (PyObject *)&PyArray_Type))
-		{
-			PyErr_SetString(PyExc_ValueError, "Error: expect a list of numpy arrays");
-			return NULL;	
 		}
 		n=py_genpars->dimensions[0];
 		m=py_genpars->dimensions[1];
@@ -770,6 +873,7 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 		if ((m!=11)&&(m!=10))
 		{
 			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an n x 11 array");
+			Py_XDECREF(py_solparsList_out);						
 			return NULL;
 		}
 		ArrayDim[0]=n;
@@ -784,11 +888,15 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 				if (fabs(a-round(a))>1e-15)
 				{
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
+					Py_XDECREF(py_solparsList_out);						
+					Py_XDECREF(py_solpars_out);						
 					return NULL;	
 				}
 				if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
 				{
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
+					Py_XDECREF(py_solparsList_out);						
+					Py_XDECREF(py_solpars_out);						
 					return NULL;	
 				}
 				genpars_in.TYPE=(MODEL_TYPE)a;
@@ -800,23 +908,22 @@ static PyObject *py_pv_craze_modelpars(PyObject *self, PyObject *args, PyObject 
 				genpars_in.TYPE=PVC_def_type;
 				for(l=0; l<10; l++)
 					genpars_in.pars[l]=*(double *)(py_genpars->data+i*py_genpars->strides[0]+l*py_genpars->strides[1]);
-			}
+			}		
 			solpars=pv_craze_g_pars(genpars_in);
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 0), PyFloat_FromDouble(solpars.Voc));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 1), PyFloat_FromDouble(solpars.Isc));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 2), PyFloat_FromDouble(solpars.Vmpp));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 3), PyFloat_FromDouble(solpars.Impp));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 4), PyFloat_FromDouble(solpars.Vqmp1));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 5), PyFloat_FromDouble(solpars.Iqmp1));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 6), PyFloat_FromDouble(solpars.Vqmp2));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 7), PyFloat_FromDouble(solpars.Iqmp2));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 8), PyFloat_FromDouble(solpars.Gsc));
-			PyArray_SETITEM(py_solpars_out, PyArray_GETPTR2(py_solpars_out, i, 9), PyFloat_FromDouble(solpars.Roc));
+			double_into_2darray(py_solpars_out, i, 0, solpars.Voc);
+			double_into_2darray(py_solpars_out, i, 1, solpars.Isc);
+			double_into_2darray(py_solpars_out, i, 2, solpars.Vmpp);
+			double_into_2darray(py_solpars_out, i, 3, solpars.Impp);
+			double_into_2darray(py_solpars_out, i, 4, solpars.Vqmp1);
+			double_into_2darray(py_solpars_out, i, 5, solpars.Iqmp1);
+			double_into_2darray(py_solpars_out, i, 6, solpars.Vqmp2);
+			double_into_2darray(py_solpars_out, i, 7, solpars.Iqmp2);
+			double_into_2darray(py_solpars_out, i, 8, solpars.Gsc);
+			double_into_2darray(py_solpars_out, i, 9, solpars.Roc);
 		}
-		PyList_SetItem(py_solparsList_out, j, (PyObject *)py_solpars_out); 	       
+		PyList_SetItem(py_solparsList_out, j, (PyObject *)py_solpars_out); 
+		       
 	}
-	
-
 	return Py_BuildValue("O", py_solparsList_out);
 }
 /* py_pv_craze_error
@@ -862,12 +969,11 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	for(i=0; i<Niv; i++)
 	{
 		py_curve_in=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)i);
-		if (!PyObject_IsInstance((PyObject *)py_curve_in, (PyObject *)&PyArray_Type))
+		if (!IsDoubleArray(py_curve_in,-1,2))
 		{
 			for(i=i-1; i>0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
-			PyErr_SetString(PyExc_ValueError, "Error: expect a list of numpy arrays");
 			return NULL;	
 		}
 		
@@ -909,27 +1015,13 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	for(i=0; i<Nm; i++)
 	{
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)i);
-		if (!IsDoubleArray(py_genpars))
+		if (!IsDoubleArray(py_genpars,-1,-1))
 		{
-			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_modelerror expects an model parameter arrays of double type");
+			for(i=0; i<Niv; i++)
+				free(curve_in[i].P);
+			free(curve_in);
+			free(genpars_in);
 			return NULL;
-		}
-		if (py_genpars==NULL)
-		{
-			for(i=0; i<Niv; i++)
-				free(curve_in[i].P);
-			free(curve_in);
-			free(genpars_in);
-			return NULL;	
-		}
-		if (!PyObject_IsInstance((PyObject *)py_genpars, (PyObject *)&PyArray_Type))
-		{
-			for(i=0; i<Niv; i++)
-				free(curve_in[i].P);
-			free(curve_in);
-			free(genpars_in);
-			PyErr_SetString(PyExc_ValueError, "Error: expect a list of numpy arrays");
-			return NULL;	
 		}
 		n=py_genpars->dimensions[0];
 		m=py_genpars->dimensions[1];
@@ -979,7 +1071,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		}   
 		E=pv_craze_error(genpars_in, curve_in, n);
 		for (j=0;j<n;j++)
-			PyArray_SETITEM(py_error, PyArray_GETPTR2(py_error, j, i), PyFloat_FromDouble(E[j]));	
+			double_into_2darray(py_error, j, i, E[j]);
 		pv_craze_free(E);// pvcraze allocated E
 	}
 	for (j=0;j<n;j++)
@@ -1095,7 +1187,7 @@ static PyObject *py_pv_craze_iv(PyObject *self, PyObject *args, PyObject *kwargs
 		for (i=0;i<n;i++)
 		{
 			V=*(double *)(py_V->data+(i)*py_V->strides[0]);
-			PyArray_SETITEM(py_I, PyArray_GETPTR1(py_I, i), PyFloat_FromDouble(pv_craze_IV(V, P)));
+			double_into_1darray(py_I, i, pv_craze_IV(V, P));
 		}
 	}
 	else if (PyArray_NDIM(py_V)==2)
@@ -1109,9 +1201,12 @@ static PyObject *py_pv_craze_iv(PyObject *self, PyObject *args, PyObject *kwargs
 			for (j=0;j<m;j++)
 			{
 				V=*(double *)(py_V->data+i*py_V->strides[0]+j*py_V->strides[1]);
-				PyArray_SETITEM(py_I, PyArray_GETPTR2(py_I, i,j), PyFloat_FromDouble(pv_craze_IV(V, P)));
+				double_into_2darray(py_I, i, j, pv_craze_IV(V, P));
 			}
 	}
+	else
+		return NULL;
+	
 	return Py_BuildValue("O", py_I);
 }
 
@@ -1133,7 +1228,7 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		return NULL;
 	if(NULL==py_genpars) 
 		return NULL;
-	if(NULL==py_V) 
+	if(NULL==py_I) 
 		return NULL;
 	
 	if (PyArray_NDIM(py_genpars)==1)
@@ -1219,7 +1314,7 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		for (i=0;i<n;i++)
 		{
 			I=*(double *)(py_I->data+i*py_I->strides[0]);
-			PyArray_SETITEM(py_V, PyArray_GETPTR1(py_V, i), PyFloat_FromDouble(pv_craze_VI(I, P)));
+			double_into_1darray(py_V, i, pv_craze_VI(I, P));
 		}
 	}
 	else if (PyArray_NDIM(py_I)==2)
@@ -1233,9 +1328,11 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 			for (j=0;j<m;j++)
 			{
 				I=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
-				PyArray_SETITEM(py_V, PyArray_GETPTR2(py_V, i,j), PyFloat_FromDouble(pv_craze_VI(I, P)));
+				double_into_2darray(py_V, i, j, pv_craze_VI(I, P));
 			}
 	}
+	else
+		return NULL;
 	return Py_BuildValue("O", py_V);
 }
 
@@ -1248,10 +1345,9 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 	PyArrayObject *G1, *G2, *T1, *T2;
 	double alpha=0, beta=0, a=0, Rs=0, kappa=0;
 	double *_G1, *_G2, *_T1, *_T2;
-	int N, M, n, m, i, j;
+	int N, M, n, i;
 	curvepars *in, *out;
 	npy_intp ArrayDim[2]={0};
-	int vh=0, vp=0;
 	
 	static char *kwlist[] = {
 		"esp",
@@ -1280,38 +1376,17 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 	if(NULL==T2) 
 		return NULL;
 		
-	if (!IsDoubleArray(epars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+	if (!IsDoubleArray(epars_in,-1,10))
 		return NULL;
-	}
-	if (!IsDoubleArray(G1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G1,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T1,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(G2))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G2,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T2))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T2,-1,-1))
 		return NULL;
-	}
 	n=epars_in->dimensions[0];
-	m=epars_in->dimensions[1];
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
-		return NULL;	
-	}
 	N=n;
 	n=G1->dimensions[0];
 	if (n!=N)
@@ -1407,16 +1482,16 @@ static PyObject *py_pv_craze_translate_IEC60891_v2(PyObject *self, PyObject *arg
 	epars_out=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
 	for(i=0; i<n; i++)
 	{
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 0), PyFloat_FromDouble(out[i].Voc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 1), PyFloat_FromDouble(out[i].Isc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 2), PyFloat_FromDouble(out[i].Vmpp));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 3), PyFloat_FromDouble(out[i].Impp));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 4), PyFloat_FromDouble(out[i].Vqmp1));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 5), PyFloat_FromDouble(out[i].Iqmp1));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 6), PyFloat_FromDouble(out[i].Vqmp2));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 7), PyFloat_FromDouble(out[i].Iqmp2));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 8), PyFloat_FromDouble(out[i].Gsc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 9), PyFloat_FromDouble(out[i].Roc));		
+		double_into_2darray(epars_out, i, 0, out[i].Voc);
+		double_into_2darray(epars_out, i, 1, out[i].Isc);
+		double_into_2darray(epars_out, i, 2, out[i].Vmpp);
+		double_into_2darray(epars_out, i, 3, out[i].Impp);
+		double_into_2darray(epars_out, i, 4, out[i].Vqmp1);
+		double_into_2darray(epars_out, i, 5, out[i].Iqmp1);
+		double_into_2darray(epars_out, i, 6, out[i].Vqmp2);
+		double_into_2darray(epars_out, i, 7, out[i].Iqmp2);
+		double_into_2darray(epars_out, i, 8, out[i].Gsc);
+		double_into_2darray(epars_out, i, 9, out[i].Roc);
 	}
 	pv_craze_free(out); // pvcraze allocated out
 	return Py_BuildValue("O", epars_out);
@@ -1428,7 +1503,7 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=1, beta=1, a=1, Rs=1, kappa=1, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, j, fN=0, off=0;
+	int N, n, i, fN=0, off=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
 	
@@ -1455,41 +1530,28 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	if (fN<0)
 		fN=0;
 		
-	if (!IsDoubleArray(epars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_fit_IEC60891_v2 expects an esp array of double type");
+	if (!IsDoubleArray(epars_in,-1,10))
 		return NULL;
-	}
 	n=epars_in->dimensions[0];
-	m=epars_in->dimensions[1];
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
-		return NULL;	
-	}
 	N=n;
-	if (!IsDoubleArray(G1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G1,-1,-1))
 		return NULL;
-	}
 	n=G1->dimensions[0];
 	if (n!=N)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: G1 input array must be of length n (number of rows in epar input array)");
 		return NULL;	
 	}
-	if (!IsDoubleArray(T1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T1,-1,-1))
 		return NULL;
-	}
 	n=T1->dimensions[0];
 	if (n!=N)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: T1 input array must be of length n (number of rows in epar input array)");
 		return NULL;	
 	}
+	
+	
 	if ((in=malloc(N*sizeof(curvepars)))==NULL)
 	{
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
@@ -1530,18 +1592,18 @@ static PyObject *py_pv_craze_fit_IEC60891_v2(PyObject *self, PyObject *args, PyO
 	free(_T1);
 	
 	
-	//build dictionary with std pars alpha, beta
 	epars_out=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 0), PyFloat_FromDouble(out.Voc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 1), PyFloat_FromDouble(out.Isc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 2), PyFloat_FromDouble(out.Vmpp));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 3), PyFloat_FromDouble(out.Impp));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 4), PyFloat_FromDouble(out.Vqmp1));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 5), PyFloat_FromDouble(out.Iqmp1));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 6), PyFloat_FromDouble(out.Vqmp2));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 7), PyFloat_FromDouble(out.Iqmp2));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 8), PyFloat_FromDouble(out.Gsc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 9), PyFloat_FromDouble(out.Roc));
+	//build dictionary with std pars alpha, beta
+	double_into_1darray(epars_out, 0, out.Voc);
+	double_into_1darray(epars_out, 1, out.Isc);
+	double_into_1darray(epars_out, 2, out.Vmpp);
+	double_into_1darray(epars_out, 3, out.Impp);
+	double_into_1darray(epars_out, 4, out.Vqmp1);
+	double_into_1darray(epars_out, 5, out.Iqmp1);
+	double_into_1darray(epars_out, 6, out.Vqmp2);
+	double_into_1darray(epars_out, 7, out.Iqmp2);
+	double_into_1darray(epars_out, 8, out.Gsc);
+	double_into_1darray(epars_out, 9, out.Roc);
 	
 	
 	return Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d}",
@@ -1556,7 +1618,7 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 	PyArrayObject *G1, *G2, *T1, *T2;
 	double Vocstd=0, Tstd=25, Gstd=1000, alpha=0, beta=0, B1=0, B2=0, Rs=0, kappa=0;
 	double *_G1, *_G2, *_T1, *_T2;
-	int N, M, n, m, i, j;
+	int N, M, n, i;
 	curvepars *in, *out;
 	npy_intp ArrayDim[2]={0};
 	
@@ -1591,38 +1653,17 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 	if(NULL==T2) 
 		return NULL;
 	
-	if (!IsDoubleArray(epars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+	if (!IsDoubleArray(epars_in, -1,10))
 		return NULL;
-	}
-	if (!IsDoubleArray(G1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G1,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T1,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(G2))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G2,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T2))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T2,-1,-1))
 		return NULL;
-	}
 	n=epars_in->dimensions[0];
-	m=epars_in->dimensions[1];
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
-		return NULL;	
-	}
 	N=n;
 	n=G1->dimensions[0];
 	if (n!=N)
@@ -1715,16 +1756,16 @@ static PyObject *py_pv_craze_translate_IEC60891_v3(PyObject *self, PyObject *arg
 	epars_out=(PyArrayObject *) PyArray_SimpleNew(2, ArrayDim, NPY_DOUBLE);
 	for(i=0; i<n; i++)
 	{
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 0), PyFloat_FromDouble(out[i].Voc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 1), PyFloat_FromDouble(out[i].Isc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 2), PyFloat_FromDouble(out[i].Vmpp));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 3), PyFloat_FromDouble(out[i].Impp));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 4), PyFloat_FromDouble(out[i].Vqmp1));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 5), PyFloat_FromDouble(out[i].Iqmp1));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 6), PyFloat_FromDouble(out[i].Vqmp2));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 7), PyFloat_FromDouble(out[i].Iqmp2));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 8), PyFloat_FromDouble(out[i].Gsc));
-		PyArray_SETITEM(epars_out, PyArray_GETPTR2(epars_out, i, 9), PyFloat_FromDouble(out[i].Roc));		
+		double_into_2darray(epars_out, i, 0, out[i].Voc);
+		double_into_2darray(epars_out, i, 1, out[i].Isc);
+		double_into_2darray(epars_out, i, 2, out[i].Vmpp);
+		double_into_2darray(epars_out, i, 3, out[i].Impp);
+		double_into_2darray(epars_out, i, 4, out[i].Vqmp1);
+		double_into_2darray(epars_out, i, 5, out[i].Iqmp1);
+		double_into_2darray(epars_out, i, 6, out[i].Vqmp2);
+		double_into_2darray(epars_out, i, 7, out[i].Iqmp2);
+		double_into_2darray(epars_out, i, 8, out[i].Gsc);
+		double_into_2darray(epars_out, i, 9, out[i].Roc);
 	}
 	pv_craze_free(out);
 	return Py_BuildValue("O", epars_out);
@@ -1737,10 +1778,9 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	PyArrayObject *G1, *T1;
 	double alpha=0, beta=0, B1=0, B2=0, Rs=0, kappa=0, Tstd=25, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, fN=0, off=0;
+	int N, n, i, fN=0, off=0;
 	curvepars *in, out;
 	npy_intp ArrayDim[1]={10};
-	int vh=0;
 	
 	static char *kwlist[] = {
 		"esp",
@@ -1764,28 +1804,13 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	if (fN<0)
 		fN=0;	
 		
-	if (!IsDoubleArray(epars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+	if (!IsDoubleArray(epars_in,-1,10))
 		return NULL;
-	}
-	if (!IsDoubleArray(G1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G1, -1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T1, -1,-1))
 		return NULL;
-	}
 	n=epars_in->dimensions[0];
-	m=epars_in->dimensions[1];
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
-		return NULL;	
-	}
 	N=n;
 	n=G1->dimensions[0];
 	if (n!=N)
@@ -1840,18 +1865,18 @@ static PyObject *py_pv_craze_fit_IEC60891_v3(PyObject *self, PyObject *args, PyO
 	free(_T1);
 	
 	
-	//build dictionary with std pars alpha, beta
 	epars_out=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 0), PyFloat_FromDouble(out.Voc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 1), PyFloat_FromDouble(out.Isc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 2), PyFloat_FromDouble(out.Vmpp));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 3), PyFloat_FromDouble(out.Impp));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 4), PyFloat_FromDouble(out.Vqmp1));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 5), PyFloat_FromDouble(out.Iqmp1));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 6), PyFloat_FromDouble(out.Vqmp2));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 7), PyFloat_FromDouble(out.Iqmp2));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 8), PyFloat_FromDouble(out.Gsc));
-	PyArray_SETITEM(epars_out, PyArray_GETPTR1(epars_out, 9), PyFloat_FromDouble(out.Roc));
+	//build dictionary with std pars alpha, beta
+	double_into_1darray(epars_out, 0, out.Voc);
+	double_into_1darray(epars_out, 1, out.Isc);
+	double_into_1darray(epars_out, 2, out.Vmpp);
+	double_into_1darray(epars_out, 3, out.Impp);
+	double_into_1darray(epars_out, 4, out.Vqmp1);
+	double_into_1darray(epars_out, 5, out.Iqmp1);
+	double_into_1darray(epars_out, 6, out.Vqmp2);
+	double_into_1darray(epars_out, 7, out.Iqmp2);
+	double_into_1darray(epars_out, 8, out.Gsc);
+	double_into_1darray(epars_out, 9, out.Roc);
 	
 	
 	return Py_BuildValue("{s:O,s:d,s:d,s:d,s:d,s:d,s:d}",
@@ -1864,9 +1889,9 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 {
 	PyArrayObject *mpars_in, *mpars_out;
 	PyArrayObject *G, *T;
-	double Vocstd=0, Tstd=-300, Gstd=-1, alpha=0, Ea=0;
+	double Tstd=-300, Gstd=-1, alpha=0, Ea=0;
 	double *_G1, *_T1;
-	int N, n, m, i, j;
+	int N, n, i, j;
 	generic_pars in, *out;
 	npy_intp ArrayDim[2]={0};
 	char unit ='K', *sunit=NULL;
@@ -1932,27 +1957,12 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 		return NULL;
 	}
 	
-	if (!IsDoubleArray(mpars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects a modelpar array of double type");
+	if (!IsDoubleArray(mpars_in,11,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(G))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects an irradiance array of double type");
+	if (!IsDoubleArray(G,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_diode_GT expects a temperature array of double type");
+	if (!IsDoubleArray(T,-1,-1))
 		return NULL;
-	}
-	n=mpars_in->dimensions[0];
-	if (n!=11)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an 1x11 modelpar input array");
-		return NULL;	
-	}
 	
 	N=G->dimensions[0];
 	n=T->dimensions[0];
@@ -2007,10 +2017,9 @@ static PyObject *py_pv_craze_translate_diode_GT(PyObject *self, PyObject *args, 
 	// output diode model parameters
 	for(i=0; i<N; i++)
 	{
-		PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, 0), PyFloat_FromDouble((double)out[i].TYPE));
+		double_into_2darray(mpars_out, i, 0, (double)out[i].TYPE);
 		for(j=0; j<10; j++)
-			PyArray_SETITEM(mpars_out, PyArray_GETPTR2(mpars_out, i, j+1), PyFloat_FromDouble(out[i].pars[j]));	
-		
+			double_into_2darray(mpars_out, i, j+1, out[i].pars[j]);
 	}
 	pv_craze_free(out);
 	return Py_BuildValue("O", mpars_out);
@@ -2022,16 +2031,13 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	PyArrayObject *G1, *T1;
 	double alpha=0, Ea=0, Tstd=298.15, Gstd=1000;
 	double *_G1, *_T1;
-	int N, M, n, m, i, fN=0, off=0;
+	int N, n, i, fN=0, off=0;
 	curvepars *in;
 	generic_pars out;
 	npy_intp ArrayDim[1];
-	int vh=0;
 	char unit ='K', *sunit=NULL;
 				
 			
-	char * str; 
-	MODEL_TYPE T;
 	
 	static char *kwlist[] = {
 		"esp",
@@ -2076,28 +2082,13 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	if (fN<0)
 		fN=0;	
 	
-	if (!IsDoubleArray(epars_in))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an esp array of double type");
+	if (!IsDoubleArray(epars_in,-1,10))
 		return NULL;
-	}
-	if (!IsDoubleArray(G1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects an irradiance array of double type");
+	if (!IsDoubleArray(G1,-1,-1))
 		return NULL;
-	}
-	if (!IsDoubleArray(T1))
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_translate_IEC60891_v2 expects a temperature array of double type");
+	if (!IsDoubleArray(T1,-1,-1))
 		return NULL;
-	}
 	n=epars_in->dimensions[0];
-	m=epars_in->dimensions[1];
-	if (m!=10)
-	{
-		PyErr_SetString(PyExc_ValueError, "Error: expect an nx10 epar input array");
-		return NULL;	
-	}
 	N=n;
 	n=G1->dimensions[0];
 	if (n!=N)
@@ -2154,9 +2145,11 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 	//build dictionary with model pars alpha, Ea	
 	ArrayDim[0]=11;
 	mpars_out=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
-	PyArray_SETITEM(mpars_out, PyArray_GETPTR1(mpars_out, 0), PyFloat_FromDouble((double)out.TYPE));
-	for(i=1; i<11; i++)
-		PyArray_SETITEM(mpars_out, PyArray_GETPTR1(mpars_out, i), PyFloat_FromDouble(out.pars[i-1]));	
+	
+	
+	double_into_1darray(mpars_out, 0, (double)out.TYPE);
+	for(i=0; i<10; i++)
+		double_into_1darray(mpars_out, i+1, out.pars[i]);
 	
 	
 	return Py_BuildValue("{s:O,s:d,s:d}",

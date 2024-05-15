@@ -27,8 +27,10 @@ T=reshape(TT,prod(size(TT)),1);
 
 
 % translate std parameters
+pvcraze_quiet()
 modelpar = pvcraze_translate_diode_GT (modelstd, 25, 1000, T, G, alpha, Ea, 'C');
 ESP=cell2mat(pvcraze_modelpars(num2cell(modelpar,2)));
+
 if (makeref==true)
 	D=[G,T,ESP];
 	save "data/refdiodeGT.dat" D;

@@ -9,7 +9,7 @@ ext = Extension(
     "pvcraze",
     include_dirs=['.',os.path.join(numpy.get_include(), 'numpy'),get_python_inc()],
     sources=["python-pv-craze.c"],
-    libraries= ['pvcraze','gsl', 'gslcblas', 'lapack', 'openblas','m' ],
+    libraries= ['pvcraze','gsl', 'gslcblas', 'lapack', 'openblas','m' ],# extra_compile_args = ['-g']
 )
 try:
     setup(

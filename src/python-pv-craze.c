@@ -493,6 +493,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	N=PyList_Size(py_curveList);
 	if ((C=malloc(N*sizeof(curve)))==NULL)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 		return NULL;
 	}
@@ -500,10 +501,16 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	{
 		py_curve=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)j);
 		if (!IsDoubleArray(py_curve,-1,2))
+		{
+			pv_craze_freesettings(&S);
 			return NULL;
+		}
 		n=py_curve->dimensions[0];
 		if ((C[j].P=malloc(n*sizeof(point)))==NULL)
 		{
+			for(i=j-1; i>=0; i--)
+				free(C[i].P);	
+			pv_craze_freesettings(&S);
 			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 			return NULL;
 		}
@@ -640,6 +647,7 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 		
 	if (S.L.N==0)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: no valid model strings found");
 		return NULL;
 	}
@@ -647,9 +655,13 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	// prepare the curves
 	n=epars->dimensions[0];
 	if (!IsDoubleArray(epars,-1,10))
+	{
+		pv_craze_freesettings(&S);
 		return NULL;
+	}
 	if ((pars=malloc(n*sizeof(curvepars)))==NULL)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
@@ -754,6 +766,7 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	}
 	if ((len=malloc(M*sizeof(int)))==NULL)
 	{
+		free(genpars_in);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
@@ -761,27 +774,34 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	k=0; // counter for the number of genpars
 	for(j=0; j<M; j++)
 	{
-		// I first cast it to an array object and then check whether it is one
-		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
 		if (!IsDoubleArray(py_genpars,-1,-1))
+		{
+			free(genpars_in);
+			free(len);
 			return NULL;
+		}
 		n=py_genpars->dimensions[0];
 		m=py_genpars->dimensions[1];
 		len[j]=n;
 		if ((m!=11)&&(m!=10))
 		{
 			free(genpars_in);
+			free(len);
 			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an n x 11 array");
 			return NULL;
 		}
 		if (k+n>Na)
-		{			
-			if ((genpars_in=realloc(genpars_in, (k+n)*sizeof(generic_pars)))==NULL)
+		{
+			generic_pars *dummy;			
+			if ((dummy=realloc(genpars_in, (k+n)*sizeof(generic_pars)))==NULL)
 			{
+				free(genpars_in);
+				free(len);
 				PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 				return NULL;	
 			}
+			genpars_in=dummy;
 		}
 		for (i=0;i<n;i++)
 		{
@@ -792,12 +812,14 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 				if (fabs(a-round(a))>1e-15)
 				{
 					free(genpars_in);
+					free(len);
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
 					return NULL;	
 				}
 				if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
 				{
 					free(genpars_in);
+					free(len);
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
 					return NULL;	
 				}
@@ -987,7 +1009,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		py_curve_in=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)i);
 		if (!IsDoubleArray(py_curve_in,-1,2))
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			return NULL;	
@@ -997,7 +1019,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		m=py_curve_in->dimensions[1];
 		if ((m!=2)||(n<1))
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			PyErr_SetString(PyExc_ValueError, "Error: expect a numpy arrays of dimensions Nx2");
@@ -1006,7 +1028,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		
 		if ((curve_in[i].P=malloc(n*sizeof(point)))==NULL)
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
@@ -1022,6 +1044,9 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	
 	if ((genpars_in=malloc(Niv*sizeof(generic_pars)))==NULL)
 	{
+		for(i=0; i<Niv; i++)
+			free(curve_in[i].P);
+		free(curve_in);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}

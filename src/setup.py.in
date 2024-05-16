@@ -15,10 +15,9 @@ try:
     setup(
 		name="pvcraze",
 		version="__version__",
-        ext_modules=[ext]
+        ext_modules=[ext], 
     )
 except SystemExit:
     print(
-        "\nIt seems the installation didn't end well.\n"
-        "sorry about that\n"
+        "\n!!INSTALLATION FAILED!!\n"
     )

@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [build-system]
-requires = ["setuptools","numpy"]
+requires = ["setuptools","wheel","numpy>=1.18"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -27,4 +27,4 @@ name = "pvcraze"
 version = "0.1.0"
 description="Photo-Voltaic CuRve AnalyZEr (PV-CRAZE)"
 keywords = ["Photo-Voltaics","solar-cell-parameters","IV model"]
-
+dependencies = ["numpy>=1.18"]

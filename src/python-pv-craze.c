@@ -24,9 +24,9 @@
  *    Dr. Bart E. Pieters 2024                                   *
  *                                                               *             
  *****************************************************************/
-#include <Python.h>
-#include <arrayobject.h>
 #include <pvcraze.h>
+#include <Python.h>
+#include <numpy/arrayobject.h>
 
 /* **************************************************
  * utilities 
@@ -255,7 +255,8 @@ void double_into_1darray(PyArrayObject *np_array, npy_intp i, double value)
 
 
 
-PyMODINIT_FUNC PyInit_pvcraze(void){
+PyMODINIT_FUNC PyInit_pvcraze(void)
+{
 	PyObject *module = PyModule_Create(&python_pvcraze);
 
 	if (module == NULL)
@@ -1256,7 +1257,7 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 	PyArrayObject *py_genpars, *py_V, *py_I;
 	
 	generic_pars P;
-	double a,I;
+	double a,Ii;
 	int i, j, n, m;
 	npy_intp ArrayDim[2]={0};
 
@@ -1354,8 +1355,8 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		py_V=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
 		for (i=0;i<n;i++)
 		{
-			I=*(double *)(py_I->data+i*py_I->strides[0]);
-			double_into_1darray(py_V, i, pv_craze_VI(I, P));
+			Ii=*(double *)(py_I->data+i*py_I->strides[0]);
+			double_into_1darray(py_V, i, pv_craze_VI(Ii, P));
 		}
 	}
 	else if (PyArray_NDIM(py_I)==2)
@@ -1368,8 +1369,8 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		for (i=0;i<n;i++)
 			for (j=0;j<m;j++)
 			{
-				I=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
-				double_into_2darray(py_V, i, j, pv_craze_VI(I, P));
+				Ii=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
+				double_into_2darray(py_V, i, j, pv_craze_VI(Ii, P));
 			}
 	}
 	else

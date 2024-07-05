@@ -24,9 +24,9 @@
  *    Dr. Bart E. Pieters 2024                                   *
  *                                                               *             
  *****************************************************************/
-#include <Python.h>
-#include <arrayobject.h>
 #include <pvcraze.h>
+#include <Python.h>
+#include <numpy/arrayobject.h>
 
 /* **************************************************
  * utilities 
@@ -72,29 +72,29 @@ static PyObject *py_pv_craze_fit_diode_GT(PyObject *self, PyObject *args, PyObje
 
 /* ==== Set up the methods table ====================== */
 static PyMethodDef pv_craze_methods[] = {
-	{"quiet",  					py_pv_craze_quiet					, METH_NOARGS					,"Silence the pv-craze library"},
-	{"verbose",  				py_pv_craze_verbose					, METH_NOARGS					,"Make the pv-craze library verbose"},
-	{"verbose_set_report",		py_pv_craze_verbose_set_report		, METH_VARARGS 					,"Enable/Disable printing analysis report"},
-	{"verbose_set_progress",	py_pv_craze_verbose_set_progress	, METH_VARARGS 					,"Enable/Disable printing a progress bar"},
-	{"verbose_set_timing",		py_pv_craze_verbose_set_timing		, METH_VARARGS 					,"Enable/Disable printing timing information"},
-	{"verbose_set_head",		py_pv_craze_verbose_set_head		, METH_VARARGS 					,"Enable/Disable printing a header"},
-	{"analyze", 				py_pv_craze_analyze			        , METH_VARARGS | METH_KEYWORDS	,"PV-CRAZE curve analysis. Extracts the extended solar cell parameters and optionally fits curve models"},
-	{"curvemodel", 				py_pv_craze_curvemodel				, METH_VARARGS | METH_KEYWORDS	,"Reconstruct IV from curve model parameters"},
-	{"modelpars", 				py_pv_craze_modelpars				, METH_VARARGS | METH_KEYWORDS	,"Compute extended solar cell parameters from generic parameters"},
-	{"lookupmodel", 			py_pv_craze_LookupModel				, METH_VARARGS 					,"Returns a model ID based on a model name"},
-	{"reverselookup", 			py_pv_craze_ReverseLookup			, METH_VARARGS 					,"Returns a model name based on a model ID"},
-	{"flagtable",  				py_pv_craze_FlagTable				, METH_NOARGS					,"generate a flag table for the used pv-craze library"},
-	{"modelfit", 				py_pv_craze_modelfit			    , METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
-	{"modelerror", 				py_pv_craze_error					, METH_VARARGS | METH_KEYWORDS	,"Compute RMS distance between IV-curve and model"},
-	{"iv", 						py_pv_craze_iv						, METH_VARARGS | METH_KEYWORDS	,"Compute current from voltage with model parameters"},
-	{"vi", 						py_pv_craze_vi						, METH_VARARGS | METH_KEYWORDS	,"Compute voltage from current with model parameters"},
+	{"quiet",  					py_pv_craze_quiet								, METH_NOARGS					,"Silence the pv-craze library"},
+	{"verbose",  				py_pv_craze_verbose								, METH_NOARGS					,"Make the pv-craze library verbose"},
+	{"verbose_set_report",		py_pv_craze_verbose_set_report					, METH_VARARGS 					,"Enable/Disable printing analysis report"},
+	{"verbose_set_progress",	py_pv_craze_verbose_set_progress				, METH_VARARGS 					,"Enable/Disable printing a progress bar"},
+	{"verbose_set_timing",		py_pv_craze_verbose_set_timing					, METH_VARARGS 					,"Enable/Disable printing timing information"},
+	{"verbose_set_head",		py_pv_craze_verbose_set_head					, METH_VARARGS 					,"Enable/Disable printing a header"},
+	{"analyze", 				(PyCFunction)py_pv_craze_analyze				, METH_VARARGS | METH_KEYWORDS	,"PV-CRAZE curve analysis. Extracts the extended solar cell parameters and optionally fits curve models"},
+	{"curvemodel", 				(PyCFunction)py_pv_craze_curvemodel				, METH_VARARGS | METH_KEYWORDS	,"Reconstruct IV from curve model parameters"},
+	{"modelpars", 				(PyCFunction)py_pv_craze_modelpars				, METH_VARARGS | METH_KEYWORDS	,"Compute extended solar cell parameters from generic parameters"},
+	{"lookupmodel", 			py_pv_craze_LookupModel							, METH_VARARGS 					,"Returns a model ID based on a model name"},
+	{"reverselookup", 			py_pv_craze_ReverseLookup						, METH_VARARGS 					,"Returns a model name based on a model ID"},
+	{"flagtable",  				py_pv_craze_FlagTable							, METH_NOARGS					,"generate a flag table for the used pv-craze library"},
+	{"modelfit", 				(PyCFunction)py_pv_craze_modelfit			    , METH_VARARGS | METH_KEYWORDS	,"Takes extended solar cell parameters and fits curve models to them"},
+	{"modelerror", 				(PyCFunction)py_pv_craze_error					, METH_VARARGS | METH_KEYWORDS	,"Compute RMS distance between IV-curve and model"},
+	{"iv", 						(PyCFunction)py_pv_craze_iv						, METH_VARARGS | METH_KEYWORDS	,"Compute current from voltage with model parameters"},
+	{"vi", 						(PyCFunction)py_pv_craze_vi						, METH_VARARGS | METH_KEYWORDS	,"Compute voltage from current with model parameters"},
 //    {"pv_craze_errorcurve", py_pv_craze_errorcurve, METH_VARARGS,""},
-	{"translate_IEC60891_v2", 	py_pv_craze_translate_IEC60891_v2	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 translation routine"},
-	{"fit_IEC60891_v2", 		py_pv_craze_fit_IEC60891_v2			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 fitting routine"},
-	{"translate_IEC60891_v3", 	py_pv_craze_translate_IEC60891_v3	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 translation routine"},
-	{"fit_IEC60891_v3", 		py_pv_craze_fit_IEC60891_v3			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 fitting routine"},
-	{"translate_diode_GT",		py_pv_craze_translate_diode_GT		, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature translation routine"},
-	{"fit_diode_GT",	 		py_pv_craze_fit_diode_GT			, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature fitting routine"},
+	{"translate_IEC60891_v2", 	(PyCFunction)py_pv_craze_translate_IEC60891_v2	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 translation routine"},
+	{"fit_IEC60891_v2", 		(PyCFunction)py_pv_craze_fit_IEC60891_v2			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v2 fitting routine"},
+	{"translate_IEC60891_v3", 	(PyCFunction)py_pv_craze_translate_IEC60891_v3	, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 translation routine"},
+	{"fit_IEC60891_v3", 		(PyCFunction)py_pv_craze_fit_IEC60891_v3			, METH_VARARGS | METH_KEYWORDS	,"IEC60891 v3 fitting routine"},
+	{"translate_diode_GT",		(PyCFunction)py_pv_craze_translate_diode_GT		, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature translation routine"},
+	{"fit_diode_GT",	 		(PyCFunction)py_pv_craze_fit_diode_GT			, METH_VARARGS | METH_KEYWORDS	,"Diode model irradiance/temperature fitting routine"},
 	{ NULL, NULL, 0, NULL }     /* Sentinel - marks the end of this structure */
 };
 
@@ -493,6 +493,7 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	N=PyList_Size(py_curveList);
 	if ((C=malloc(N*sizeof(curve)))==NULL)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 		return NULL;
 	}
@@ -500,10 +501,16 @@ static PyObject *py_pv_craze_analyze(PyObject *self, PyObject *args, PyObject *k
 	{
 		py_curve=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)j);
 		if (!IsDoubleArray(py_curve,-1,2))
+		{
+			pv_craze_freesettings(&S);
 			return NULL;
+		}
 		n=py_curve->dimensions[0];
 		if ((C[j].P=malloc(n*sizeof(point)))==NULL)
 		{
+			for(i=j-1; i>=0; i--)
+				free(C[i].P);	
+			pv_craze_freesettings(&S);
 			PyErr_SetString(PyExc_ValueError, "Error: pv_craze_analyze could not allocate memory");
 			return NULL;
 		}
@@ -640,6 +647,7 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 		
 	if (S.L.N==0)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: no valid model strings found");
 		return NULL;
 	}
@@ -647,9 +655,13 @@ static PyObject *py_pv_craze_modelfit(PyObject *self, PyObject *args, PyObject *
 	// prepare the curves
 	n=epars->dimensions[0];
 	if (!IsDoubleArray(epars,-1,10))
+	{
+		pv_craze_freesettings(&S);
 		return NULL;
+	}
 	if ((pars=malloc(n*sizeof(curvepars)))==NULL)
 	{
+		pv_craze_freesettings(&S);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
@@ -754,6 +766,7 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	}
 	if ((len=malloc(M*sizeof(int)))==NULL)
 	{
+		free(genpars_in);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
@@ -761,27 +774,34 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 	k=0; // counter for the number of genpars
 	for(j=0; j<M; j++)
 	{
-		// I first cast it to an array object and then check whether it is one
-		// I suppose that works...
 		py_genpars=(PyArrayObject *) PyList_GetItem(py_genparList, (Py_ssize_t)j);
 		if (!IsDoubleArray(py_genpars,-1,-1))
+		{
+			free(genpars_in);
+			free(len);
 			return NULL;
+		}
 		n=py_genpars->dimensions[0];
 		m=py_genpars->dimensions[1];
 		len[j]=n;
 		if ((m!=11)&&(m!=10))
 		{
 			free(genpars_in);
+			free(len);
 			PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, expect an n x 11 array");
 			return NULL;
 		}
 		if (k+n>Na)
-		{			
-			if ((genpars_in=realloc(genpars_in, (k+n)*sizeof(generic_pars)))==NULL)
+		{
+			generic_pars *dummy;			
+			if ((dummy=realloc(genpars_in, (k+n)*sizeof(generic_pars)))==NULL)
 			{
+				free(genpars_in);
+				free(len);
 				PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 				return NULL;	
 			}
+			genpars_in=dummy;
 		}
 		for (i=0;i<n;i++)
 		{
@@ -792,12 +812,14 @@ static PyObject *py_pv_craze_curvemodel(PyObject *self, PyObject *args, PyObject
 				if (fabs(a-round(a))>1e-15)
 				{
 					free(genpars_in);
+					free(len);
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, first number must be a round number");
 					return NULL;	
 				}
 				if (((MODEL_TYPE)a<0)||((MODEL_TYPE)a>=M_NONE))
 				{
 					free(genpars_in);
+					free(len);
 					PyErr_SetString(PyExc_ValueError, "Error: wrong parameter array format, unknown model index");
 					return NULL;	
 				}
@@ -987,7 +1009,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		py_curve_in=(PyArrayObject *) PyList_GetItem(py_curveList, (Py_ssize_t)i);
 		if (!IsDoubleArray(py_curve_in,-1,2))
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			return NULL;	
@@ -997,7 +1019,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		m=py_curve_in->dimensions[1];
 		if ((m!=2)||(n<1))
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			PyErr_SetString(PyExc_ValueError, "Error: expect a numpy arrays of dimensions Nx2");
@@ -1006,7 +1028,7 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 		
 		if ((curve_in[i].P=malloc(n*sizeof(point)))==NULL)
 		{
-			for(i=i-1; i>0; i--)
+			for(i=i-1; i>=0; i--)
 				free(curve_in[i].P);
 			free(curve_in);
 			PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
@@ -1022,6 +1044,9 @@ static PyObject *py_pv_craze_error(PyObject *self, PyObject *args, PyObject *kwa
 	
 	if ((genpars_in=malloc(Niv*sizeof(generic_pars)))==NULL)
 	{
+		for(i=0; i<Niv; i++)
+			free(curve_in[i].P);
+		free(curve_in);
 		PyErr_SetString(PyExc_ValueError, "Error: failed to allocate memory");
 		return NULL;	
 	}
@@ -1231,7 +1256,7 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 	PyArrayObject *py_genpars, *py_V, *py_I;
 	
 	generic_pars P;
-	double a,I;
+	double a,Ii;
 	int i, j, n, m;
 	npy_intp ArrayDim[2]={0};
 
@@ -1329,8 +1354,8 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		py_V=(PyArrayObject *) PyArray_SimpleNew(1, ArrayDim, NPY_DOUBLE);
 		for (i=0;i<n;i++)
 		{
-			I=*(double *)(py_I->data+i*py_I->strides[0]);
-			double_into_1darray(py_V, i, pv_craze_VI(I, P));
+			Ii=*(double *)(py_I->data+i*py_I->strides[0]);
+			double_into_1darray(py_V, i, pv_craze_VI(Ii, P));
 		}
 	}
 	else if (PyArray_NDIM(py_I)==2)
@@ -1343,8 +1368,8 @@ static PyObject *py_pv_craze_vi(PyObject *self, PyObject *args, PyObject *kwargs
 		for (i=0;i<n;i++)
 			for (j=0;j<m;j++)
 			{
-				I=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
-				double_into_2darray(py_V, i, j, pv_craze_VI(I, P));
+				Ii=*(double *)(py_I->data+i*py_I->strides[0]+j*py_I->strides[1]);
+				double_into_2darray(py_V, i, j, pv_craze_VI(Ii, P));
 			}
 	}
 	else

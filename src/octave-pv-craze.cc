@@ -438,7 +438,10 @@ Output:\n\
 		fprintf(stderr, "Warning: Incomplete optional argument list\n");
 	Nc=IV.numel();
 	if (Nc==0)
+	{
+		pv_craze_freesettings(&Set);
 		return octave_value_list ();
+	}
 	
 	
 	EPar=Matrix(Nc,10);
@@ -463,8 +466,10 @@ Output:\n\
 	// create a list of curves
 	if ((C=(curve *)malloc(Nc*sizeof(curve)))==NULL)
 	{
+		pv_craze_freesettings(&Set);
 		return octave_value_list ();
 	}
+	
 	for (i=0;i<Nc;i++)
 	{
 		iv=IV(i,0).matrix_value();
@@ -480,6 +485,7 @@ Output:\n\
 				for (i=i-1;i>=0;i--)
 					free(C[i].P);
 				free(C);
+				pv_craze_freesettings(&Set);
 				return octave_value_list ();
 			}				
 			C[i].N=iv.rows();
@@ -608,6 +614,7 @@ Output:\n\
 		if ((pars=(curvepars *)malloc(Nc*sizeof(curvepars)))==NULL)
 		{
 			fprintf(stderr, "Error: pvcraze_modelfit failed to allocate memory\n");
+			pv_craze_freesettings(&Set);
 			return octave_value_list ();
 		}
 		for(i=0; i<Nc; i++)

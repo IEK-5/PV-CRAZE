@@ -739,17 +739,18 @@ void GetQMPPs(curve Cn, int *FLAGCODE, double Vmpp, double Impp, double *Vqmp1, 
 		(*Iqmp1)=0;
 		(*Vqmp2)=0;
 		(*Iqmp2)=0;
+		return;
 	}		
 	Cx=PreprocessCurve(Cn,1);
-	if (Cx.N==0)
+	if ((Cx.N==0)||(Cx.P==NULL))
 	{
 		(*FLAGCODE)|=FLAG_CODE(FLAG_MALLOCFAIL);
 		(*Vqmp1)=0;
 		(*Iqmp1)=0;
 		(*Vqmp2)=0;
 		(*Iqmp2)=0;
-	}		
-		
+		return;
+	}			
 	Cx.P[0].y-=Impp;
 	Pmax=Cx.P[0].x*Cx.P[0].y;
 	for (i=1;i<Cn.N;i++)
@@ -942,7 +943,6 @@ int FlagMono(curvepars par)
 	section<<=1;			
 	if (par.Roc<0)
 		FLAG|=section;
-	section<<=1;	
 	return FLAG;
 }
 

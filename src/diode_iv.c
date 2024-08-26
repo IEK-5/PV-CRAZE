@@ -836,13 +836,9 @@ diodepars DEParameterize(curvepars par, diodepars P, MODELSET *S)
 	double lb[5], ub[5];
 	double xmin[5];
 	de_settings Se=de_default;
-	double EPS2=S->fiteps;
 	time_t t;
 	srand((unsigned) time(&t));
-	
-	/* square EPS to save some sqrts */
-	EPS2*=EPS2*5;
-	
+		
 	Se.max_iter=S->fititer;
 	if (Se.max_iter<1000)
 		Se.max_iter=1000;

@@ -182,6 +182,8 @@ int ParseModel(const char *spec, char *word, MODELSET *S)
 	int inum;
 	double dnum;
 	next=(char *)spec;
+	if (S==NULL)
+		return 1;
 	// parse model specs
 	while (next)
 	{

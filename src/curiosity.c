@@ -288,8 +288,8 @@ void InitRandom(void)
 }
 
 // mazes use row major ordering
-#define ROW(n,M) ((n)/(M->Nx))
-#define COL(n,M) ((n)%(M->Nx))
+#define ROW(n,M) ((M->Nx) == 0 ? 0 : ((n)/(M->Nx)))
+#define COL(n,M) ((M->Nx) == 0 ? 0 : ((n)%(M->Nx)))
 #define INDEX(r,c,M) ((r)*(M->Nx)+(c))
 
 
@@ -716,7 +716,7 @@ char *GetProgram()
 	char *prog, *r, *p;
 	prog=calloc((MAXPLEN+1), sizeof(char));
 	printf("Curiosity Navigational Prompt:\n> ");
-	if ((r=fgets(prog,MAXPLEN,stdin))==NULL)
+	if (fgets(prog,MAXPLEN,stdin)==NULL)
 		prog[0]='\0';
 	r=prog;
 	p=prog;
@@ -1042,12 +1042,12 @@ void Curiosity(int Nx, int Ny)
 		case 'r':
 			cc=Cr;
 			break;
-		case 'l':
+		//case 'l':
 		default:
 			cc=Cl;
 			break;
 	}
-	printf(Intro);
+	printf("%s",Intro);
 	printf("-- Press Enter To Continue --");
 	getchar();
 	printf(Situation,cc);

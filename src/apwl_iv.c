@@ -283,7 +283,10 @@ double APWLRMSErr(generic_pars P, curve C, MODELSET *S)
 
 double SPWLRMSErr_i(spwlpars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.V[P.N-1], P.I[0], (void *) &P, &SPWL_i, C,S);
+	if ((P.V!=NULL)&&(P.I!=NULL))
+		return RMSErr(P.V[P.N-1], P.I[0], (void *) &P, &SPWL_i, C,S);
+	else
+		return NAN;
 }
 // Exported Function
 double SPWLRMSErr(generic_pars P, curve C, MODELSET *S)

@@ -1075,11 +1075,11 @@ void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, doub
 	EPS2*=EPS2*N*10;	
 	
 	/* fill the x vector */
-	x[0]=IFX0(*alpha);
-	x[1]=IFX1(*beta);
-	x[2]=IFX2(*a);
-	x[3]=IFX3(*Rs);
-	x[4]=IFX4(*kappa);
+	xmin[0]=x[0]=IFX0(*alpha);
+	xmin[1]=x[1]=IFX1(*beta);
+	xmin[2]=x[2]=IFX2(*a);
+	xmin[3]=x[3]=IFX3(*Rs);
+	xmin[4]=x[4]=IFX4(*kappa);
 	
 	
 	step[0]=SIMPLSIZE*x[0]+MINSIMPLSIZE;
@@ -1616,7 +1616,6 @@ void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, doub
 	e=FitErr2(xmin, (void *) (&pp));
 	if (e<E0)
 	{
-		E0=e;
 		x0[0]=xmin[0];
 		x0[1]=xmin[1];
 		x0[2]=xmin[2];

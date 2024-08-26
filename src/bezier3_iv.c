@@ -358,6 +358,8 @@ int Monotone(double x0, double x1, double x2, double x3, double *E)
 	d1=x3-x2;
 	denom=x3-3*x2+3*x1-x0;
 	num= -(x2-2*x1+x0);
+	if (E)
+		(*E)=0;		
 	if ((d0*d1>=0)&&((fabs(denom)<fabs(num))||(denom*num<0))) // slopes at t=0 and t=1 of same sign and no inflection point on 0<=t<=1
 		return 1;
 		
@@ -443,7 +445,7 @@ int Monotone(double x0, double x1, double x2, double x3, double *E)
 double FitControll(double *x, double *y, double dy0, double dy1, double dyc, MODELSET *S)
 {
 
-	double tmin=0, topt, tmax=1, t, Eopt, E, Em1, Em2;
+	double tmin=0, topt, tmax=1, t, Eopt, E, Em1=0, Em2=0;
 	double dy,dx, xx, yy;
 	int MONO, MONO_OPT=0;
 	

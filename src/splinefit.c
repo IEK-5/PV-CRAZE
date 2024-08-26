@@ -187,7 +187,7 @@ long incx)
 		/*                      Loop when no big number yet encountered. */
 		for (i = 1, _do0=DOCNT(i,nn,_do1 = incx); _do0 > 0; i += _do1, _do0--)
 		{
-			xa = fabsf( X[i] );
+			xa = fabs( X[i] );
 			if (xa < tsmall)
 			{
 				sumx += pow(fsmall*xa,2);
@@ -222,7 +222,7 @@ L_200:
 		/*                      Loop when we have at least one big number. */
 		for (i = i, _do2=DOCNT(i,nn,_do3 = incx); _do2 > 0; i += _do3, _do2--)
 		{
-			xa = fabsf( X[i] );
+			xa = fabs( X[i] );
 			if (xa > tsmall)
 			{
 				if (xa > tbig)
@@ -1065,7 +1065,7 @@ long *ierr1)
 {
 #define W(I_,J_)	(*(w+(I_)*(nw)+(J_)))
 	LOGICAL32 newseg, usewt1;
-	long int i, ierr2, ierr3, irnow, iseg, j, jpoint, jtprev, k, ksize,
+	long int i, ierr2=0, ierr3, irnow, iseg, j, jpoint, jtprev, k, ksize,
 	 n1, nparam;
 	double dof, p[4], rnorm, sdijp, wt, wt1;
 		/* OFFSET Vectors w/subscript range: 1 to dimension */

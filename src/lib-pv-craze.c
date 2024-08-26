@@ -651,7 +651,7 @@ CurveProp * pv_craze_analyze(curve *C, int N, ProcessSettings *S)
 		Prop[i]=analyze_single(C[i], S, &tana);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}	
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	ttotal=TOC(&ttotal);
 	
 	if (pvcraze_verbose&VERB_TIMING)
@@ -752,7 +752,7 @@ CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S)
 		Prop[i]=modelfit_single(par[i], S);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}	
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	ttotal=TOC(&ttotal);
 	
 	if (pvcraze_verbose&VERB_TIMING)
@@ -795,7 +795,7 @@ double *pv_craze_error(generic_pars *pars, curve *C, int N)
 		d[i]=pv_craze_g_rmse(pars[i], C[i]);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return d;
 }
 
@@ -821,7 +821,7 @@ curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N)
 		Co[i]=pv_craze_g_distcurve(pars[i], C[i]);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return Co;
 }
 // reconstruct IV curves from curve model parameters
@@ -843,7 +843,7 @@ curve *pv_craze_curvemodel(generic_pars *pars, int N, int M)
 		C[i]=pv_craze_g_tocurve(pars[i], M);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return C;
 }
 // translate curves using the IEC60891 procedure 2 
@@ -911,7 +911,7 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 		printf("---------------------------------\n");*/
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return Cout;
 }
 
@@ -974,7 +974,7 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 		printf("---------------------------------\n");*/
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return Cout;
 }
 
@@ -1134,7 +1134,7 @@ generic_pars *pv_craze_translate_diode_GT(generic_pars pars, double Gstd,
 			Cout[i]=DiodeGTTranslate(pars,alpha,Ea,G[i],T[i],Gstd,Tstd,&FitDIODEGTMODSET);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
-	pc=ProgressBar(100, pc, LLEN, TICS);
+	ProgressBar(100, pc, LLEN, TICS);
 	return Cout;
 }
 

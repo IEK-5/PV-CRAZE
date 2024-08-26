@@ -161,6 +161,8 @@ point PWL_deriv(double t, int i, generic_pars P)
 				I0=P.pars[7];
 				V1=P.pars[0];
 				I1=0;
+				p.x=V1-V0;
+				p.y=I1-I0;
 			}
 			else
 			{

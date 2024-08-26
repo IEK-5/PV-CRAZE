@@ -9,7 +9,6 @@ ext = Extension(
     include_dirs=['.',numpy.get_include(),get_python_inc()],
     sources=["python-pv-craze.c"],
     libraries= ['pvcraze','gsl', 'gslcblas', 'lapack', 'openblas','m' ],# extra_compile_args = ['-g']
-    define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 )
 try:
     setup(

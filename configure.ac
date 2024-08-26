@@ -19,6 +19,18 @@ AC_ENABLE_SHARED
 AC_ENABLE_SHARED([])
 LT_INIT([win32-dll])
 AM_INIT_AUTOMAKE()
+
+# optionally enable linting with clang-tidy
+AC_ARG_ENABLE([lint], [AS_HELP_STRING([--enable-lint],[Enable linting])],
+  [enable_lint=yes],
+  [enable_lint=no])
+if test "$enable_lint" = "yes"; then
+  AC_PATH_PROG([LINTER], [clang-tidy], [true])
+  AS_IF([test "x$LINTER" = xtrue],
+    [AC_MSG_WARN([cland-tidy not found! Linting disabled.])])
+fi
+AM_CONDITIONAL([RUN_LINTER], [test "x$enable_lint" = xyes])
+
 AC_PROG_CC
 AC_CONFIG_SRCDIR([src/lib-pv-craze.c])
 AC_CONFIG_HEADERS([src/config.h])

@@ -1,15 +1,15 @@
 from setuptools import setup, Extension
 from distutils.sysconfig import get_python_inc
 import numpy
-import os
 
 
 
 ext = Extension(
     "pvcraze",
-    include_dirs=['.',os.path.join(numpy.get_include(), 'numpy'),get_python_inc()],
+    include_dirs=['.',numpy.get_include(),get_python_inc()],
     sources=["python-pv-craze.c"],
     libraries= ['pvcraze','gsl', 'gslcblas', 'lapack', 'openblas','m' ],# extra_compile_args = ['-g']
+    define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 )
 try:
     setup(

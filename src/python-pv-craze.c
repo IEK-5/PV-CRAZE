@@ -255,7 +255,8 @@ void double_into_1darray(PyArrayObject *np_array, npy_intp i, double value)
 
 
 
-PyMODINIT_FUNC PyInit_pvcraze(void){
+PyMODINIT_FUNC PyInit_pvcraze(void)
+{
 	PyObject *module = PyModule_Create(&python_pvcraze);
 
 	if (module == NULL)

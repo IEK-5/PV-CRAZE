@@ -443,7 +443,6 @@ Output:\n\
 		return octave_value_list ();
 	}
 	
-	
 	EPar=Matrix(Nc,10);
 	dim_vector dim(Nc,1);
 	Flags=int32NDArray(dim);
@@ -580,7 +579,7 @@ Output:\n\
 	int i, j, k;
   	if (nargin < 2)
 	{
-    		print_usage ();
+    	print_usage ();
 		return octave_value_list ();
 	}
 	
@@ -613,6 +612,7 @@ Output:\n\
 		FErr=Matrix(Nc, Set.L.N);
 		if ((pars=(curvepars *)malloc(Nc*sizeof(curvepars)))==NULL)
 		{
+			pv_craze_freesettings(&Set);
 			fprintf(stderr, "Error: pvcraze_modelfit failed to allocate memory\n");
 			pv_craze_freesettings(&Set);
 			return octave_value_list ();

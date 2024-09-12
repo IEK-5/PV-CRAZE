@@ -1,12 +1,12 @@
 # pv-craze version
-m4_define([pvcraze_version], [1.0])
+m4_define([pvcraze_version], [1.01])
 AC_INIT([libpvcraze], [pvcraze_version])
 
 # interface version 
-m4_define([pvcraze_current], [1])
+m4_define([pvcraze_major],   [1])
 m4_define([pvcraze_revision],[0])
-m4_define([pvcraze_age],     [0])
-version_info="pvcraze_current:pvcraze_revision:pvcraze_age"
+m4_define([pvcraze_patch],   [1])
+version_info="pvcraze_major:pvcraze_revision:pvcraze_patch"
 AC_SUBST([version_info])
 
 

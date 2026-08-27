@@ -18,7 +18,7 @@ IV=[IV;iv];
 
 [ESP,F]=pvcraze_analyze(IV);
 ref=[128;128;256;0;2097264;136356976;136356976];
-E=ref.-F(:,1);
+E=ref-F(:,1);
 ii=(abs(E>0.5));
 r=sum(ii);
 if (r>0)

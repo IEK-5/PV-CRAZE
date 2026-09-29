@@ -23,10 +23,15 @@ do
 	runtest $i
 done
 		
-for i in *.py
-do
-	runtest $i
-done
+# python tests (pytest, see tests/python)
+T=$((T+1))
+if python3 -m pytest -q python &> /dev/null
+then
+	echo -e "${GREEN}PASS${NC}	python (pytest)"
+else
+	echo -e "${RED}FAIL${NC}	python (pytest), run 'python3 -m pytest tests/python' for details"
+	F=$((F+1))
+fi
 if [ "$F" -gt 0 ]
 then
 	echo -e "${RED}$F/$T	failed${NC}"

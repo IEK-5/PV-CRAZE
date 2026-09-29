@@ -35,9 +35,9 @@
 
 // provide two models, the plain Spline and the PV-Spline (monotone spline by inserting dummy knots)
 //MODELFLAG SPLINE Spline SplineToCurve SplineRMSErr SplineDistCurve PlainSplineFit SplinePars SplineIV SplineVI
-//MODELPARS SPLINE Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS SPLINE Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 //MODELFLAG PVSPLINE PV-spline SplineToCurve SplineRMSErr SplineDistCurve PVSplineFit SplinePars SplineIV SplineVI
-//MODELPARS PVSPLINE Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS PVSPLINE Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			SplineToCurve(generic_pars P, int N, MODELSET *S);
 double 			SplineRMSErr(generic_pars P, curve C, MODELSET *S);

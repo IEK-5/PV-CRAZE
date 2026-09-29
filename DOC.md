@@ -1,5 +1,5 @@
 # PV-CRAZE Documentation
-The PV-CRAZE library is not a standalone tool but rather a library with bindings to python and GNU octave. In the General Section we discuss the library without the details of the python and GNU Octave bindings. The specifics of the python and GNU-Octave bindigns are discussed in seperate Sections.
+The PV-CRAZE library is not a standalone tool but rather a library with bindings to Python and GNU Octave. In the General Section we discuss the library without the details of the Python and GNU Octave bindings. The specifics of the bindings are discussed in separate Sections.
 
 ## General
 The PV-CRAZE library provides a collection of routines:
@@ -114,29 +114,21 @@ Translate ESP using the IEC60891 v2 norm model. Takes as input ESP, input temper
 
 Translate ESP using the IEC60891 v3 norm model. Takes as input ESP, input temperature and irradiance, and output temperature and irradiance. The routine then computes for each input ESP the output ESP.
 
-## GNU Octave & Python Interfaces
-### Differences Python and Octave interfaces
-In general the routines in octave and python are more or less identical. Some differences exist. In octave all routine names start with ```pvcraze_<function>```, whereas in python we have the dot notation, so, assuming you use ```import pvcraze```, the routines are referred to as ```pvcraze.<function>```. In the following we use the Octave natation but, with some simple changes like replacing the uderscore with a dot, you may recognize the equivalent python call.
+## Python Interface
+The Python package is a separate, object based interface; it does not mirror
+the Octave routines below. See the section [Python](#python) at the end of
+this document.
 
-The used datatypes in Octave and python differ. In Octave we mostly use arrays and cell ararys, whereas in python we use numpy arrays and lists. If routines give multiple return values we use dictionaries in python. In the following, if we write in the octave notation
-
-    [A,B]=<function>(...),
-
-the python equivalent returns a dictionary with the elements ```A``` and ```B```.
-
-Argument handling is different in python and octave. In python we use the keyword notation, meaning that you can mix positional arguments with keyword arguments, e.g. calling the function ```<function>(X,Y)``` as ```<function>(1,2)``` yields the same results as ```<function>(Y=2,X=1)```. This type of notation is not available in Octave, instead we use there positional arguments for the mandatory arguments. Optional arguments are passed as name value pairs, e.g. given a function with the mandatory (positional) arguments ```X``` and ```Y``` and the optional argument ```foo```, we can call as ```<function>(1,2,"foo", 3)```, which would make ```X=1```, ```Y=2```, and ```foo=3```.
+## GNU Octave Interface
+In Octave all routine names start with ```pvcraze_<function>```. Mandatory arguments are positional. Optional arguments are passed as name value pairs, e.g. given a function with the mandatory (positional) arguments ```X``` and ```Y``` and the optional argument ```foo```, we can call as ```<function>(1,2,"foo", 3)```, which would make ```X=1```, ```Y=2```, and ```foo=3```.
 
 To load pvcraze use in Octave:
 
     pkg load pv-craze
 
-and in python
+The routine decription is built in and accessable using the ```help``` command, e.g. ```help pvcraze_analyze```.
 
-    import pvcraze
-    
-In octave the routine decription is built in and accessable using the ```help``` command, e.g. ```help pvcraze_analyze```.
-
-You may look at the scripts in the test directory for examples how to use both the octave and python interfaces.
+You may look at the scripts in the test directory for examples.
 
 ### pvcraze_analyze:
      [esp,flags,modelpar,err] = pvcraze_analyze (IV,[optional-parameters])
@@ -145,9 +137,8 @@ You may look at the scripts in the test directory for examples how to use both t
      data.
      Input:
         • IV: Cell array with arrays with two columns (voltage,current)
-        • ’models’: (Optional) Takes a model string (in Octave this 
-          option may be passed multiple times, in python this may be a 
-          list of strings)
+        • ’models’: (Optional) Takes a model string (this option may 
+          be passed multiple times)
         • ’mpp-method’: (Optional) Select mpp method, can be ’f’ (fast,
           not robust), ’r’ (robust), ’p’ (parametric), or ’s’
           Savitsky-Golay
@@ -181,8 +172,8 @@ You may look at the scripts in the test directory for examples how to use both t
      models to them.
      Input:
         • esp: Array of extended solar cell parameters (Nx10)
-        • ’models’: One or more model specification strings (in Octave 
-          multiple models may be passed, in python one list of strings). 
+        • ’models’: One or more model specification strings (multiple models 
+          may be passed). 
           Note, that unlike the analysis function the model 
           specifications are not optional, and hence in Octave the 
           models are positional arguments (i.e. do not pass string 
@@ -389,8 +380,7 @@ You may look at the scripts in the test directory for examples how to use both t
 	 optional arguments are, as an exception to the general rule, not 
 	 passed as key value pairs. As the unit variable has few valid 
 	 string values and furthest_N is an integer, the meaning of the 
-	 last two optional arguments is inferred from its contents. This 
-	 does not affect the python interface.
+	 last two optional arguments is inferred from its contents.
 
      Input:
         • esp: array with extended solar cell parameters, one row
@@ -423,8 +413,7 @@ You may look at the scripts in the test directory for examples how to use both t
 	 temperature and irradiance, given a temperature coefficient for 
 	 the photo-current and an activation energy for the saturation 
 	 current. In Octave, the last optional argument is, as an exception 
-	 to the general rule, not passed as a key value pair. This does not 
-	 affect the python interface.
+	 to the general rule, not passed as a key value pair.
 
      Input:
         • modelpar: Diode model parameters at standard test conditions
@@ -501,7 +490,7 @@ You may look at the scripts in the test directory for examples how to use both t
      Enable/Disable header output. If set-value evaluates to true a header is displayed.
 	
 ## C
-PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave and python libraries build). Installing the library also installs the library header, "pvcraze.h". This single header file contains all necessary data structures and declarations of the library symbols. 
+PV-CRAZE is written in C, so naturally it also provides a C interface (upon which the GNU Octave interface builds; the Python package compiles the same sources into its extension module). Installing the library also installs the library header, "pvcraze.h". This single header file contains all necessary data structures and declarations of the library symbols. 
 
 The most important data structures of the library are:
 
@@ -633,3 +622,144 @@ AnalyzeFlag *pv_craze_flagtable(int *N);
      void pv_craze_verbosetiming(int set);
      Enable/Disable timing report. If set-value evaluates to true a timing information is displayed.
 
+
+## Python
+### Installation
+The Python package compiles the C sources into its extension module, so it
+does not need an installed libpvcraze. It needs a C compiler and the
+development files of GSL and LAPACK (found via pkg-config). From the
+repository root:
+
+    pip install .              # add [pandas] for DataFrame export
+
+Build and install use [meson-python](https://mesonpy.readthedocs.io); the
+build description is `meson.build` in the repository root. The C library and
+the Octave package are still built with autotools.
+
+### Overview
+```python
+import numpy as np
+import pvcraze as pc
+
+res = pc.analyze(V, I, models=["PV-Bezier", pc.FitSpec("Diode", population=200)])
+res.ok                            # False if an error flag is set
+res.flag().messages               # human readable warnings/errors
+res.esp                           # ESP(voc=..., isc=..., ...)
+res.esp.voc, res.esp.ff           # fields and derived quantities
+bez = res.fits["PV-Bezier"]       # FitResult: .params, .error, .spec
+bez.params.iv([0.0, 0.3, 0.5])    # evaluate I(V)
+bez.params.curve(200)             # (n, 2) array (V, I)
+
+fit = pc.fit_model(res.esp, "Diode")   # fit from ESP only
+fit.params.rs, fit.params.rsh          # named parameters
+```
+
+Everything has docstrings; `help(pc)`, `help(pc.analyze)`, `help(pc.ESP)`
+and so on are the reference. Conventions:
+
+* **Units** are SI (V, A, S, Ohm); temperatures are in **degrees Celsius**,
+  irradiances in W/m2. IV curves use the generator convention (positive
+  current between short circuit and open circuit).
+* **Single vs batch.** `ESP`, `ModelParams`, `AnalysisResult` and
+  `FitResult` are either *single* (fields are floats) or a *batch* (fields are
+  1-D arrays). The form follows the input: one curve in gives single
+  results, a list of curves gives batch results. Batches support `len`,
+  iteration, integer indexing (giving a single object), slicing and boolean
+  masks. `np.asarray(esp)` gives the raw `(10,)` / `(N, 10)` array.
+* **Models** are given by name (case and punctuation insensitive, e.g.
+  `"pv-bezier"`), as a `pc.Model` member, or as a `pc.FitSpec` with fitting
+  options. Unknown names raise `ValueError` listing the valid ones.
+* **Objects are immutable**; `to_array()`, `to_dict()` and `to_dataframe()`
+  return copies.
+* The C library is **silent** by default. Use `with pc.verbose(): ...` or
+  `pc.set_verbosity(report=True)` to see its console output.
+
+### Curve input
+`pc.analyze` accepts
+
+| call | meaning |
+|---|---|
+| `analyze(iv)` | one curve, `iv` an `(n, 2)` array with columns (V, I) |
+| `analyze([iv0, iv1, ...])` | a batch; curves may differ in length |
+| `analyze(V, I)` | one curve given as 1-D arrays |
+| `analyze([V0, V1, ...], [I0, I1, ...])` | a batch given as 1-D arrays |
+
+Any real numeric dtype is accepted and converted to float64.
+
+### ESP fields
+| field | unit | meaning |
+|---|---|---|
+| `voc` | V | open-circuit voltage |
+| `isc` | A | short-circuit current |
+| `vmpp`, `impp` | V, A | maximum power point |
+| `vqmp_minus`, `iqmp_minus` | V, A | qmp- point, between short circuit and the MPP |
+| `vqmp_plus`, `iqmp_plus` | V, A | qmp+ point, between the MPP and open circuit |
+| `gsc` | S | -dI/dV at short circuit |
+| `roc` | Ohm | -dV/dI at open circuit |
+
+plus the derived `pmpp` and `ff`.
+
+### Models and parameters
+`pc.Model` lists the models (`APWL`, `B2`, `DIODE`, `KH`, `PC`, `PV_BEZIER`,
+`PV_SPLINE`, `PWL`, `SPLINE`); `Model.X.param_names` gives the parameter
+names used as attributes of `ModelParams`:
+
+| model | parameters |
+|---|---|
+| PV-Bezier, PV-spline, B2, Spline, PWL, APWL | the ESP fields (`voc`, `isc`, ...) |
+| Diode | `i0` [A], `nkt` [V], `iph` [A], `rs` [Ohm], `rsh` [Ohm] |
+| KH | `voc`, `isc`, `gamma`, `m` |
+| PC | `voc`, `isc`, `vmpp`, `impp`, `eta` |
+
+`ModelParams` can also be built by hand, e.g.
+`pc.ModelParams("Diode", i0=1e-10, nkt=0.03, iph=0.035, rs=0.1, rsh=700)`,
+and provides `iv(V)`, `vi(I)`, `curve(npoints)`, `esp()`, `rmse(curves)` and
+`distance(curves)`.
+
+`FitSpec(model, max_iter=, tol=, population=, eval_max_iter=, eval_tol=,
+refine_tol=, refine=)` replaces the former model specification strings
+(`fitit`, `fiteps`, `npop`, `mit`, `meps`, `oeps`, `refine`).
+
+### Flags
+`AnalysisResult.flags` holds the raw integer codes (an int64 array for a
+batch); `res.ok` / `res.has_warning` are vectorised checks and
+`res.flag(i)` returns a `pc.Flag` (an `enum.IntFlag`) with `.messages`,
+`.has_error`, `.errors` and `.warnings`. Test individual flags by name, e.g.
+`pc.Flag.NOMPP in res.flag(i)`.
+
+### Irradiance and temperature translation
+```python
+from pvcraze import iec60891, diode_gt
+
+coef = iec60891.fit(esp, T=T, G=G, version=3)   # IEC60891v3 (or version=2)
+coef.esp_ref                                    # ESP at t_ref, g_ref (25 degC, 1000 W/m2)
+coef.translate(T=60, G=800)                     # reference -> other conditions
+coef.translate(T=25, G=1000, esp=esp, T_from=T, G_from=G)   # any -> any
+iec60891.IEC60891v2(alpha=..., beta=..., a=..., rs=..., kappa=...)  # known coefficients
+
+gt = diode_gt.fit(esp, T=T, G=G)                # DiodeGT
+gt.at(T=60, G=800)                              # diode ModelParams at those conditions
+gt.esp(T=T, G=G)
+```
+Condition arguments broadcast against each other and the ESP rows. The
+`max_points` / `seed_index` options of the fitting routines enable furthest
+point sampling in the G-T plane to limit the number of conditions used.
+
+### Migrating from the pvcraze 1.x Python API
+| old | new |
+|---|---|
+| `pvcraze.analyze(IV, models=["model(PV-Bezier)"])['esp']` | `pc.analyze(IV, models="PV-Bezier").esp` |
+| `B['flags'][:, 0]` | `res.flags`, `res.ok`, `res.flag(i).messages` |
+| `B['modelpar'][k]` (N x 11, model id in column 0) | `res.fits[name].params` |
+| `B['err'][:, k]` | `res.fits[name].error` |
+| `modelfit(esp, [spec])` | `fit_model(esp, "Diode", population=200)` |
+| `modelpars([mp])[0]` | `params.esp()` |
+| `curvemodel([mp], N)[0]` | `params.curve(N)` |
+| `modelerror([mp], IV)` | `params.rmse(IV)` |
+| `iv(V, mp)`, `vi(I, mp)` | `params.iv(V)`, `params.vi(I)` |
+| `lookupmodel`, `reverselookup` | `pc.Model("name")`, `Model.X.id` |
+| `flagtable()` | `pc.Flag`, `pc.describe_flags(code)` |
+| `quiet()`, `verbose()`, `verbose_set_*` | silent by default, `pc.verbose()`, `pc.set_verbosity()` |
+| `fit_IEC60891_v2/v3`, `translate_IEC60891_v2/v3` | `iec60891.fit(..., version=)`, `coef.translate(...)` |
+| `fit_diode_GT`, `translate_diode_GT` | `diode_gt.fit(...)`, `gt.at(T, G)` |
+| `'Tunit'` arguments | temperatures are always degrees Celsius |

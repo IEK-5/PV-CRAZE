@@ -34,7 +34,7 @@
  */
  
 //MODELFLAG APWL APWL APWLToCurve APWLRMSErr APWLDistCurve APWLFit APWLPars APWLIV APWLVI
-//MODELPARS APWL Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS APWL Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			APWLToCurve(generic_pars P, int N, MODELSET *S);
 double 			APWLRMSErr(generic_pars P, curve C, MODELSET *S);

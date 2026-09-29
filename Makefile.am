@@ -1,5 +1,6 @@
 SUBDIRS = src
 ACLOCAL_AMFLAGS = -I m4
+EXTRA_DIST = VERSION
 if RUN_LINTER
 lint: 
 	$(LINTER) $(srcdir)/src/*.c

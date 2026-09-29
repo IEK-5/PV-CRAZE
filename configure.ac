@@ -1,5 +1,5 @@
 # pv-craze version
-m4_define([pvcraze_version], [1.01])
+m4_define([pvcraze_version], m4_esyscmd_s([cat VERSION]))
 AC_INIT([libpvcraze], [pvcraze_version])
 
 # interface version 

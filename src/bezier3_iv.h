@@ -35,7 +35,7 @@
  */
  
 //MODELFLAG PVBEZIER PV-Bezier B3ToCurve B3RMSErr B3DistCurve B3Fit B3Pars B3IV B3VI
-//MODELPARS PVBEZIER Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS PVBEZIER Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 
 curve 			B3ToCurve(generic_pars P, int N, MODELSET *S);

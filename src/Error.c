@@ -36,6 +36,14 @@ char * Fmessage(int N)
 		return NULL;
 }
 
+char * Fname(int N)
+{
+	if ((N>=0)&&(N<NIVF))
+		return iv_flag_names[N];
+	else
+		return NULL;
+}
+
 void F_Message(int FLAGCODE)
 {
 	if (FLAGCODE)

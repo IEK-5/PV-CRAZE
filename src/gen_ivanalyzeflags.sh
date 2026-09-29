@@ -59,5 +59,12 @@ grep -Eo '//IVFLAG.*' tmperrflags|grep -Eo '".*"' |awk '{print "	"$0","}' >>$FIL
 echo "	NULL"  >>$FILE2
 echo "};"  >>$FILE2
 
+# flag names (without the FLAG_ prefix), same order as the messages
+echo "char *iv_flag_names[] = {"  >>$FILE2
+echo "	\"NOFLAG\","  >>$FILE2
+awk '{sub(/^FLAG_/, "", $2); print "	\""$2"\","}' tmperrflags >>$FILE2
+echo "	NULL"  >>$FILE2
+echo "};"  >>$FILE2
+
 
 rm tmperrflags

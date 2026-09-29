@@ -32,5 +32,6 @@
 
 
 char * Fmessage(int N);
+char * Fname(int N);
 void F_Message(int FLAGCODE);
 int IsError(int FLAGCODE);

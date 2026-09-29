@@ -34,6 +34,8 @@ from ._esp import ESP, as_esp
 
 __all__ = ["IEC60891v2", "IEC60891v3", "fit"]
 
+_SCALAR = (int, float, np.integer, np.floating)
+
 
 def _broadcast(esp: ESP, **conds: Any) -> Tuple[np.ndarray, dict, bool]:
     """Broadcast esp rows and condition vectors to a common length."""
@@ -79,8 +81,22 @@ class _Translation:
     g_ref: float
     esp_ref: Optional[ESP]
 
-    def _translate_rows(self, rows, conds) -> np.ndarray:  # pragma: no cover - abstract
+    _core_fn: Any = None  # the C translation routine (set by the subclasses)
+    _core_fn1: Any = None  # its single-ESP, scalar-condition variant
+
+    def _coef_args(self) -> Tuple[float, ...]:  # pragma: no cover - abstract
         raise NotImplementedError
+
+    def _cargs(self) -> Tuple[float, ...]:
+        """The coefficient arguments of the C routine, computed once per object."""
+        args = self.__dict__.get("_cargs_")
+        if args is None:
+            args = tuple(float(v) for v in self._coef_args())
+            object.__setattr__(self, "_cargs_", args)
+        return args
+
+    def _translate_rows(self, rows, c) -> np.ndarray:
+        return type(self)._core_fn(rows, c["T_from"], c["G_from"], c["T"], c["G"], *self._cargs())
 
     def translate(
         self,
@@ -105,9 +121,17 @@ class _Translation:
             if T_from is not None or G_from is not None:
                 raise ValueError("T_from/G_from only apply together with esp=")
             esp = self.esp_ref
-        e = as_esp(esp)
         T_from = self.t_ref if T_from is None else T_from
         G_from = self.g_ref if G_from is None else G_from
+        # fast path for the most common call (one ESP, scalar conditions), e.g.
+        # inside a Kalman filter; skips the general broadcasting
+        if (isinstance(T, _SCALAR) and isinstance(G, _SCALAR)
+                and isinstance(T_from, _SCALAR) and isinstance(G_from, _SCALAR)):
+            rows = esp._data if isinstance(esp, ESP) else np.asarray(esp, dtype=np.float64)
+            if rows.shape == (10,):
+                args = self.__dict__.get("_cargs_") or self._cargs()
+                return ESP._wrap_owned(type(self)._core_fn1(rows, T_from, G_from, T, G, *args))
+        e = as_esp(esp)
         rows, c, single = _broadcast(e, T_from=T_from, G_from=G_from, T=T, G=G)
         if rows.shape[0] == 0:
             return ESP._wrap(np.empty((0, 10)))
@@ -146,11 +170,11 @@ class IEC60891v2(_Translation):
     g_ref: float = 1000.0
     esp_ref: Optional[ESP] = field(default=None, compare=False)
 
-    def _translate_rows(self, rows, c) -> np.ndarray:
-        return _core.iec60891_v2_translate(
-            rows, c["T_from"], c["G_from"], c["T"], c["G"],
-            float(self.alpha), float(self.beta), float(self.a), float(self.rs), float(self.kappa),
-        )
+    _core_fn = staticmethod(_core.iec60891_v2_translate)
+    _core_fn1 = staticmethod(_core.iec60891_v2_translate1)
+
+    def _coef_args(self) -> Tuple[float, ...]:
+        return (self.alpha, self.beta, self.a, self.rs, self.kappa)
 
     @classmethod
     def fit(
@@ -232,13 +256,12 @@ class IEC60891v3(_Translation):
         if self.voc_ref is None:
             raise TypeError("IEC60891v3 needs voc_ref (or esp_ref)")
 
-    def _translate_rows(self, rows, c) -> np.ndarray:
-        return _core.iec60891_v3_translate(
-            rows, c["T_from"], c["G_from"], c["T"], c["G"],
-            float(self.voc_ref), float(self.t_ref), float(self.g_ref),
-            float(self.alpha), float(self.beta), float(self.b1), float(self.b2),
-            float(self.rs), float(self.kappa),
-        )
+    _core_fn = staticmethod(_core.iec60891_v3_translate)
+    _core_fn1 = staticmethod(_core.iec60891_v3_translate1)
+
+    def _coef_args(self) -> Tuple[float, ...]:
+        return (self.voc_ref, self.t_ref, self.g_ref, self.alpha, self.beta,
+                self.b1, self.b2, self.rs, self.kappa)
 
     @classmethod
     def fit(

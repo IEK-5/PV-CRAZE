@@ -42,6 +42,15 @@ def iec60891_v3_translate(
     voc_ref: float, t_ref: float, g_ref: float,
     alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, /,
 ) -> np.ndarray: ...
+def iec60891_v2_translate1(
+    esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
+    alpha: float, beta: float, a: float, rs: float, kappa: float, /,
+) -> np.ndarray: ...
+def iec60891_v3_translate1(
+    esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
+    voc_ref: float, t_ref: float, g_ref: float,
+    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, /,
+) -> np.ndarray: ...
 def iec60891_v2_fit(
     esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, /
 ) -> Tuple[np.ndarray, float, float, float, float, float]: ...

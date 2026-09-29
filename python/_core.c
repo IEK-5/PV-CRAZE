@@ -951,6 +951,53 @@ static PyObject *core_iec60891_v3_translate(PyObject *self, PyObject *args)
 	return ret;
 }
 
+/* single ESP, scalar conditions: the hot path of e.g. a Kalman filter.
+ * iec60891_v{2,3}_translate1(esp (10,), T_from, G_from, T, G, coefficients...) -> (10,) */
+static PyObject *translate1(PyObject *args, int version)
+{
+	PyObject *esp_obj;
+	PyArrayObject *e, *o;
+	double t1, g1, t2, g2, c[9];
+	curvepars in, *out;
+	npy_intp dims[1]={10};
+	int ok;
+	if (version==3)
+		ok=PyArg_ParseTuple(args, "Oddddddddddddd", &esp_obj, &t1, &g1, &t2, &g2,
+			c, c+1, c+2, c+3, c+4, c+5, c+6, c+7, c+8);
+	else
+		ok=PyArg_ParseTuple(args, "Oddddddddd", &esp_obj, &t1, &g1, &t2, &g2,
+			c, c+1, c+2, c+3, c+4);
+	if (!ok)
+		return NULL;
+	if ((e=as_vector(esp_obj, 10, "esp"))==NULL)
+		return NULL;
+	in=row_to_pars((const double *)PyArray_DATA(e));
+	Py_DECREF(e);
+	if (version==3)
+		out=pv_craze_translate_IEC60891_v3(&in, &g1, &t1, 1, &g2, &t2, 1,
+			c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8]);
+	else
+		out=pv_craze_translate_IEC60891_v2(&in, &g1, &t1, 1, &g2, &t2, 1,
+			c[0], c[1], c[2], c[3], c[4]);
+	FLUSH_LIBRARY_OUTPUT();
+	if (out==NULL)
+		return PyErr_NoMemory();
+	if ((o=(PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_DOUBLE))!=NULL)
+		pars_to_row(out, (double *)PyArray_DATA(o));
+	free(out);
+	return (PyObject *)o;
+}
+
+static PyObject *core_iec60891_v2_translate1(PyObject *self, PyObject *args)
+{
+	return translate1(args, 2);
+}
+
+static PyObject *core_iec60891_v3_translate1(PyObject *self, PyObject *args)
+{
+	return translate1(args, 3);
+}
+
 /* parse esp + T, G vectors of equal length for the fitting routines */
 typedef struct {
 	curvepars *esp;
@@ -1117,6 +1164,10 @@ static PyMethodDef core_methods[]={
 		"iec60891_v2_translate(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa) -> esp"},
 	{"iec60891_v3_translate", core_iec60891_v3_translate, METH_VARARGS,
 		"iec60891_v3_translate(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa) -> esp"},
+	{"iec60891_v2_translate1", core_iec60891_v2_translate1, METH_VARARGS,
+		"iec60891_v2_translate1(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa) -> esp (10,)"},
+	{"iec60891_v3_translate1", core_iec60891_v3_translate1, METH_VARARGS,
+		"iec60891_v3_translate1(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa) -> esp (10,)"},
 	{"iec60891_v2_fit", core_iec60891_v2_fit, METH_VARARGS,
 		"iec60891_v2_fit(esp, T, G, t_ref, g_ref, max_points, seed) -> (esp_ref, alpha, beta, a, rs, kappa)"},
 	{"iec60891_v3_fit", core_iec60891_v3_fit, METH_VARARGS,

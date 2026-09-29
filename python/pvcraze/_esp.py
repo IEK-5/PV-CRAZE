@@ -100,6 +100,14 @@ class ESP:
         obj._set(data)
         return obj
 
+    @classmethod
+    def _wrap_owned(cls, data: np.ndarray) -> "ESP":
+        """Wrap a fresh float64 array nobody else references, without copying."""
+        data.flags.writeable = False
+        obj = cls.__new__(cls)
+        object.__setattr__(obj, "_data", data)
+        return obj
+
     # ------------------------------------------------------------------ io
     @classmethod
     def from_array(cls, array: Any) -> "ESP":

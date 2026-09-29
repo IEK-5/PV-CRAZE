@@ -305,6 +305,17 @@ def test_iec60891_v3_datasheet_coefficients(gt_data):
         pc.iec60891.IEC60891v3(alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0)
 
 
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version):
+    T, G, esp = gt_data
+    coef = pc.iec60891.fit(esp, T, G, version=version)
+    fast = coef.translate(T=40.0, G=700.0, esp=esp[5], T_from=float(T[5]), G_from=float(G[5]))
+    general = coef.translate(T=[40.0], G=[700.0], esp=esp[5:6], T_from=[T[5]], G_from=[G[5]])
+    assert not fast.is_batch and general.is_batch
+    np.testing.assert_array_equal(np.asarray(fast), np.asarray(general)[0])
+    assert not np.asarray(fast).flags.writeable
+
+
 def test_iec60891_translate_between_conditions(gt_data):
     T, G, esp = gt_data
     coef = pc.iec60891.fit(esp, T, G, version=2)

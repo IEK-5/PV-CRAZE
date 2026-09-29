@@ -609,7 +609,39 @@ void MonotonizeSection(double *x, double *y)
 		y[2]=y[3]+t*(y[2]-y[3]);
 	}
 }
-void SplitSection(double *x, double *y, double dyc, double t)
+/* Keep the controll points of a section inside the triangle spanned by the two
+ * end tangents (only if the tangents intersect within the section).
+ * The distance of each controll point to its knot is limited to lie between
+ * TRI_FMIN and 1 times the distance of the knot to the tangent intersection.
+ * The upper limit ensures the section is monotone and does not cross its end
+ * tangents, i.e. around the mpp the power does not exceed Pmpp. The lower limit
+ * prevents degenerate (zero length) handles which lead to kinks.
+ * Only the handle lengths change, the knots and slopes remain as they are. */
+#define TRI_FMIN 0.3
+void TriangleSection(double *x, double *y, double s0, double s3)
+{
+	double xi, L0, L3, h0, h3;
+	h0=x[1]-x[0];
+	h3=x[3]-x[2];
+	if (s0==s3)
+		return;
+	// voltage of the tangent intersection
+	xi=((y[3]-s3*x[3])-(y[0]-s0*x[0]))/(s0-s3);
+	if ((xi<=x[0])||(xi>=x[3]))
+		return;
+	L0=xi-x[0];
+	L3=x[3]-xi;
+	if (h0>L0) h0=L0;
+	if (h0<TRI_FMIN*L0) h0=TRI_FMIN*L0;
+	if (h3>L3) h3=L3;
+	if (h3<TRI_FMIN*L3) h3=TRI_FMIN*L3;
+	x[1]=x[0]+h0;
+	y[1]=y[0]+h0*s0;
+	x[2]=x[3]-h3;
+	y[2]=y[3]-h3*s3;
+}
+
+void SplitSection(double *x, double *y, double dy0, double dyc, double dy1, double t)
 {
 	// split bezier section of 4 points in 2 connected sections of 7 points total (one point is shared by both)
 	double m1x, m2x, m3x, m1y, m2y, m3y;
@@ -647,6 +679,10 @@ void SplitSection(double *x, double *y, double dyc, double t)
 	x[4]=x[3]+sqrt(l)/sqrt(dyc*dyc+1);
 	y[4]=y[3]+dyc*sqrt(l)/sqrt(dyc*dyc+1);
 	
+	// keep controll points within the tangent triangles
+	TriangleSection(x, y, dy0, dyc);
+	TriangleSection(x+3, y+3, dyc, dy1);
+	
 	// ensure monotone interpolation
 	if (ParMono(x[0], y[0], (y[1]-y[0])/(x[1]-x[0]), x[3], y[3], dyc))
 		MonotonizeSection(x, y);
@@ -664,8 +700,8 @@ B3pars InitFitBezier(B3pars B, double dIsc, double dIqmp1, double dImpp, double 
 	// first we fit the controll points
 	t1=FitControll(B.V, B.I, dIsc, dImpp, dIqmp1,S);
 	t2=FitControll(B.V+6, B.I+6, dImpp, dIoc, dIqmp2,S);
-	SplitSection(B.V, B.I, dIqmp1, t1);
-	SplitSection(B.V+6, B.I+6, dIqmp2, t2);
+	SplitSection(B.V, B.I, dIsc, dIqmp1, dImpp, t1);
+	SplitSection(B.V+6, B.I+6, dImpp, dIqmp2, dIoc, t2);
 	return B;
 }
 

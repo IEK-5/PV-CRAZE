@@ -44,20 +44,27 @@ char * Fname(int N)
 		return NULL;
 }
 
-void F_Message(int FLAGCODE)
+/* 1 if flag number N is an error, 0 if it is a warning (or out of range) */
+int Fiserror(int N)
+{
+	if ((N>0)&&(N<NIVF))
+		return iv_flag_is_error[N];
+	else
+		return 0;
+}
+
+void F_Message(unsigned int FLAGCODE)
 {
 	if (FLAGCODE)
 	{
 		int i;
-		for (i=1;i<=NIVF;i++)
+		for (i=1;i<NIVF;i++)
 			if (ISFLAG(FLAGCODE,i))
 				fprintf(stderr,"\t%s\n",  Fmessage(i));
 	}	
 }
 
-int IsError(int FLAGCODE)
+int IsError(unsigned int FLAGCODE)
 {
-	if (FLAGCODE>=ERRTH)
-		return 1;
-	return 0;
+	return (FLAGCODE&IV_ERROR_MASK)!=0;
 }

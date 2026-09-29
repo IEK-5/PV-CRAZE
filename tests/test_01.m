@@ -46,7 +46,7 @@ endif
 
 # test FLAGS
 Fr=load('data/refflags1.dat');
-r=F(:,1)-Fr(:,1);
+r=double(F(:,1))-Fr(:,1);
 ii=(abs(r)>0.5);
 r=sum(ii);
 

@@ -26,12 +26,13 @@
  
 #include "ivanalyzeflags.h"
 
-/* error macros */
-#define FLAG_CODE(N)  (((N)==FLAG_NOFLAG) ? 0 : (1<< (N-1)))
+/* error macros, flag codes are unsigned int bit masks */
+#define FLAG_CODE(N)  (((N)==FLAG_NOFLAG) ? 0u : (1u<<((N)-1)))
 #define ISFLAG(FLAGCODE,N) (((FLAGCODE) & (FLAG_CODE(N))) ? (1) : (0))
 
 
 char * Fmessage(int N);
 char * Fname(int N);
-void F_Message(int FLAGCODE);
-int IsError(int FLAGCODE);
+int Fiserror(int N);
+void F_Message(unsigned int FLAGCODE);
+int IsError(unsigned int FLAGCODE);

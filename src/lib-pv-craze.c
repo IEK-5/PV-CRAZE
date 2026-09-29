@@ -39,7 +39,7 @@
 #include "furthestsampling.h" // reduce datasets before fitting
 
 typedef struct {
-	int flag;
+	unsigned int flag;
 	int count;
 } FLAGCOUNT;
 
@@ -90,7 +90,7 @@ void pv_craze_verbosehead(int set)
 }
 // default settings for curve analysis
 analyze_settings def_settings = {
-	0,								// SpikeFilter
+	1,								// SpikeFilter
 	0,								// Ident Filter
 	0,								// resample
 	1e-12,							// Ident-Eps
@@ -107,7 +107,7 @@ MODEL_TYPE pv_craze_lookupmodel(char *word)
 
 
 #define LISTBLOCK 16
-int IsInList(FLAGLIST *list, int id)
+int IsInList(FLAGLIST *list, unsigned int id)
 {
 	int i;
 	if (list->N==0)
@@ -130,7 +130,7 @@ FLAGLIST InitFlagList()
 	return F;
 }
 
-int AddToList(FLAGLIST *list, int id)
+int AddToList(FLAGLIST *list, unsigned int id)
 {
 	int index;
 	if (!list->F)
@@ -384,17 +384,54 @@ AnalyzeFlag *pv_craze_flagtable(int *N)
 	{
 		A[i].FLAG=FLAG_CODE(i);
 		A[i].message=Fmessage(i);
-		A[i].ERR=(i>=NIVWARN);
+		A[i].ERR=Fiserror(i);
 	}
 	return A;
 }
 #define NROWLINE 4
 #define NCOLLINE 4
 
+/* letter used for flag number i in the report tables */
+static char FlagLetter(int i)
+{
+	int m=i%52;
+	return (m<26) ? 'a'+m : 'A'+m-26;
+}
+
+/* Report columns: warnings first, then errors, each in flag number order.
+ * Fills order[0..NIVF-2] with flag numbers and returns the number of warnings. */
+static int ReportOrder(int *order)
+{
+	int i, n=0, nw;
+	for (i=1;i<NIVF;i++)
+		if (!Fiserror(i))
+			order[n++]=i;
+	nw=n;
+	for (i=1;i<NIVF;i++)
+		if (Fiserror(i))
+			order[n++]=i;
+	return nw;
+}
+
+/* column separator before report column p (0 based): "||" between warnings
+ * and errors, "|" every NCOLLINE columns. c is the character to repeat. */
+static void ColSep(int p, int nw, char c)
+{
+	int q=(p<nw) ? p : p-nw;
+	if (p==nw)
+	{
+		putchar(c);
+		putchar(c);
+	}
+	else if (q%NCOLLINE==0)
+		putchar(c);
+}
+
 // summarize analysis results for a list of curve properties
 void Report(CurveProp *Prop, int N)
 {	
-	int i, j, k, l, e;
+	int i, j, p, k, l, e, nw;
+	int order[NIVF];
 	FLAGLIST FlagList;
 	char *WLAB="|Warnings";
 	char *ELAB="Errors";
@@ -418,6 +455,7 @@ void Report(CurveProp *Prop, int N)
 		}
 	}	
 	SortErrWarn(&FlagList);
+	nw=ReportOrder(order);
 	/* create result table */
 	printf("\n************************************************************************\n");
 	printf(  "*                            Analysis Report:                          *\n");
@@ -430,88 +468,45 @@ void Report(CurveProp *Prop, int N)
 	printf(  "Flag | Code       | Err |                 Error Message                 \n");
 	printf(  "-----+------------+-----+-----------------------------------------------\n");
 	for (i=0;i<NIVF;i++)
-	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;
-		if (i>=NIVWARN)
-			printf("%c    | 0x%08x | yes | %s\n", c, FLAG_CODE(i), Fmessage(i));
-		else
-			printf("%c    | 0x%08x | no  | %s\n", c, FLAG_CODE(i), Fmessage(i));
-	}
-	for (;i<NIVF;i++)
-	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;
-		printf("%c    | 0x%08x | no  | %s\n", c, FLAG_CODE(i), Fmessage(i));
-	}
+		printf("%c    | 0x%08x | %s | %s\n", FlagLetter(i), FLAG_CODE(i), Fiserror(i) ? "yes" : "no ", Fmessage(i));
 		
 	printf(  "-----+------------+---+-------------------------------------------------\n\n");
 	printf(  "Result Table:          ");
 	i=0;
-	for (j=1;j<NIVF;j++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (j==NIVWARN)
+		if (p==nw)
 		{
 			printf("||");
 			s=ELAB;
 			i=0;
 		}
-		else if (j%NCOLLINE==1)
+		else if (((p<nw) ? p : p-nw)%NCOLLINE==0)
 		{
 			if (s[i])
-			{
-				putchar(s[i]);
-				i++;
-			}
+				putchar(s[i++]);
 			else
 				putchar(' ');
-				
 		}	
 		if (s[i])
-		{
-			putchar(s[i]);
-			i++;
-		}
+			putchar(s[i++]);
 		else
 			putchar(' ');
 	}
 	putchar('\n');
 	
 	printf(  "---------------------+-");
-	for (j=1;j<NIVF;j++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (j==NIVWARN)
-			printf("++");
-		else if (j%NCOLLINE==1)
-			printf("+");	
+		ColSep(p, nw, '+');
 		printf("-");		
 	}
 	printf(  "\n");
-	printf(  " Count  | Code       ");
-	for (i=0;i<NIVF;i++)
+	printf(  " Count  | Code       |%c", FlagLetter(0));
+	for (p=0;p<NIVF-1;p++)
 	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;	
-		if (i==NIVWARN)
-			printf("||");
-		else if ((i%NCOLLINE==1)||(i==0))
-			printf("|");
-		printf("%c", c);
+		ColSep(p, nw, '|');
+		printf("%c", FlagLetter(order[p]));
 	}
 	printf("\n");
 	k=0; // flaged curve counter
@@ -523,12 +518,9 @@ void Report(CurveProp *Prop, int N)
 		{
 			printf("--------+------------");
 			printf("+-");
-			for (j=1;j<NIVF;j++)
+			for (p=0;p<NIVF-1;p++)
 			{
-				if (j==NIVWARN)
-					printf("++");
-				else if (j%NCOLLINE==1)
-					printf("+");	
+				ColSep(p, nw, '+');
 				printf("-");		
 			}
 			printf("\n");
@@ -544,19 +536,12 @@ void Report(CurveProp *Prop, int N)
 			printf("|X");
 		else
 			printf("| ");
-		for (j=1;j<NIVF;j++)
+		for (p=0;p<NIVF-1;p++)
 		{
-			if (j==NIVWARN)
-				printf("||");
-			else if (j%NCOLLINE==1)
-				printf("|");	
+			j=order[p];
+			ColSep(p, nw, '|');
 			if (ISFLAG(FlagList.F[i].flag,j))
-			{
-				if (j>=NIVWARN)
-					printf("!");
-				else
-					printf("X");
-			}
+				printf(Fiserror(j) ? "!" : "X");
 			else
 				printf(" ");
 		}
@@ -564,12 +549,9 @@ void Report(CurveProp *Prop, int N)
 		l++;	
 	}
 	printf("--------+------------+-");
-	for (i=1;i<NIVF;i++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (i==NIVWARN)
-			printf("++");
-		else if (i%NCOLLINE==1)
-			printf("+");	
+		ColSep(p, nw, '+');
 		printf("-");		
 	}		
 	printf("\n");

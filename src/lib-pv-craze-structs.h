@@ -26,7 +26,7 @@
 //START-HEADER-EXPORT mark the start of a block that describes the C api
 typedef struct {
 	curvepars par;								// curve parameters
-	int A_FLAGS;								// analysis flags
+	unsigned int A_FLAGS;						// analysis flags (bit mask, see pv_craze_flagtable)
 	double *E;									// fit errors
 	generic_pars *P;							// parameters for the various fit models
 	int N;										// number of fit models
@@ -38,7 +38,7 @@ typedef struct {
 } ProcessSettings;
 
 typedef struct {
-	int FLAG;
+	unsigned int FLAG;
 	char *message;
 	int ERR;
 } AnalyzeFlag;

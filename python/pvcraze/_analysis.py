@@ -164,7 +164,7 @@ def analyze(
     *,
     models: Union[ModelLike, Sequence[ModelLike], None] = None,
     mpp_method: str = "savgol",
-    spike_filter: bool = False,
+    spike_filter: bool = True,
     identical_eps: Optional[float] = None,
     resample: Optional[int] = None,
     mpp_dv: Optional[float] = None,
@@ -198,7 +198,11 @@ def analyze(
         ``"robust"`` (robust least squares), ``"parametric"`` (V, I and P as
         polynomials of the point index), or ``"fast"`` (assumes no noise).
     spike_filter:
-        Apply a 3rd order median filter to the data before the analysis.
+        Replace the current of every interior point by the median of itself
+        and its two neighbours (voltage order) before the analysis. This
+        removes isolated spikes and is on by default. Independent of this
+        setting, large isolated outliers are reported as ``Flag.OUTLIERS``,
+        and three or more of them mark the curve as ``Flag.NOISY_IV``.
     identical_eps:
         If given, drop consecutive points whose V and I differ by less than
         this value.

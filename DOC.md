@@ -10,7 +10,7 @@ This routine is the core of PV-CRAZE. It analyzes a list of IV curves and return
 The numerical settings for the curve analysis are:
 - Spike Filter
 
-> Boolean value. If true a 3rd order median filter is used to filter the IV prior to analyzing the data.
+> Boolean value, on by default. The current of every interior point is replaced by the median of itself and its two neighbours (in voltage order) prior to analyzing the data. This removes isolated spikes; the end points are left as they are.
 
 - Identical Filter
 
@@ -53,6 +53,20 @@ The numerical settings for the curve analysis are:
 
 > The mpp is determined using 3rd order polynomial fits. The mpp method is one of `f` no noise assumption, fast but not robust. `r` robust OLS fit. `p`: parametric. The parametric option treats the voltage, current, and power all as polynomial functions of time. The optimum time is extracted from the third oder power curve. Subsequently the voltage and current are extracted from the time dependent voltage and current curves. `s` Savitsky-Golay filter. Provides a faster model which is still robust (Savitsky-Golay also uses the parametric approach).
 
+
+### Analysis flags
+
+The analysis sets flags, bits in an unsigned 32-bit code, that are either *warnings* (results are atypical or inaccurate) or *errors* (no meaningful parameters could be determined). `pvcraze_flagtable` lists them. Each flag has a fixed number, defined in the source by a comment of the form
+
+    //IVFLAGWARN  FLAG_OUTLIERS  30  "Isolated outlier points in the IV data"
+
+and its code is `1<<(number-1)`. Codes are part of the interface: existing flags keep their number and new flags take the next free one, so stored flag codes remain valid.
+
+Besides the checks on the extracted parameters, three checks look at the data quality of the whole curve (on the active range, sorted by voltage):
+
+- OUTLIERS (warning): isolated outlier points, i.e. an interior point whose current deviates more than 5% of the current scale from the median of itself and its two neighbours. They are removed by the spike filter (on by default).
+- IV_STEPS (warning): the power has more than one maximum, separated by power swings of more than 5% of Pmax (determined on the best monotone fit of the current so voltage jitter does not count). Typical for mismatch and bypass diodes. The ESP still describe the key points, but no curve model can represent the steps.
+- NOISY_IV (error): the data is not a usable IV curve. Raised when the RMS deviation of the current from its best monotone fit exceeds 5% of the current range (after repairing outliers), or when three or more outliers are found.
 
 ### pvcraze_modelfit
 
@@ -725,7 +739,10 @@ refine_tol=, refine=)` replaces the former model specification strings
 batch); `res.ok` / `res.has_warning` are vectorised checks and
 `res.flag(i)` returns a `pc.Flag` (an `enum.IntFlag`) with `.messages`,
 `.has_error`, `.errors` and `.warnings`. Test individual flags by name, e.g.
-`pc.Flag.NOMPP in res.flag(i)`.
+`pc.Flag.NOMPP in res.flag(i)`. Flag codes are stable across versions (see
+Analysis flags). The data quality flags `OUTLIERS`, `IV_STEPS` and
+`NOISY_IV` are described there too; `analyze(..., spike_filter=False)`
+keeps the data as measured.
 
 ### Irradiance and temperature translation
 ```python

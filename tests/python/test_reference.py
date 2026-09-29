@@ -39,7 +39,9 @@ def test_analyze_flags_bad_curves():
         np.column_stack([t, np.exp(t * np.pi / 50)]),
     ]
     res = pc.analyze(curves)
-    np.testing.assert_array_equal(res.flags, [256, 0, 2097264, 136356976, 136356976])
+    # the last three currents increase with voltage, which is no IV curve
+    np.testing.assert_array_equal(res.flags, [256, 0, 2**31, 2**31, 2**31])
+    assert all(res.flag(i) == pc.Flag.NOISY_IV for i in (2, 3, 4))
     assert list(res.ok) == [False, True, False, False, False]
     assert res.flag(0) == pc.Flag.INSUFF_I_RANGE  # a constant current has no range
     assert res.flag(0).messages == ["Relative Current range too small"]

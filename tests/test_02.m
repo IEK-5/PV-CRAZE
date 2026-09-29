@@ -17,9 +17,10 @@ IV=[IV;iv];
 
 
 [ESP,F]=pvcraze_analyze(IV);
-ref=[128;128;256;0;2097264;136356976;136356976];
-E=ref-F(:,1);
-ii=(abs(E>0.5));
+% the last three currents increase with voltage: not an IV curve (NOISY_IV)
+ref=[128;128;256;0;2147483648;2147483648;2147483648];
+E=ref-double(F(:,1));
+ii=(abs(E)>0.5);
 r=sum(ii);
 if (r>0)
 	fprintf(stderr, "Error: Deviations detected in %d/%d results\n",r, length(IV));

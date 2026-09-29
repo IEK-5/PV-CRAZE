@@ -18,9 +18,13 @@ spline_iv.$(OBJEXT): splinefit.h
 EXTRA_DIST = octave-pv-craze.cc Makefile_octave.in octave_configure.ac octave_makefile.am
 dist_pkgdata_DATA = octave-pv-craze.tar.gz
 
-models.h model_table.h: $(modelfiles)
+# each generator writes two headers; give each a single rule so parallel make
+# runs it only once
+model_table.h: models.h
+models.h: $(modelfiles) register_models.sh
 	${SHELL} ${srcdir}/register_models.sh  ${srcdir} $(modelfiles)
-ivanalyzemessages.h ivanalyzeflags.h: curve.c gen_ivanalyzeflags.sh
+ivanalyzemessages.h: ivanalyzeflags.h
+ivanalyzeflags.h: curve.c gen_ivanalyzeflags.sh
 	${SHELL} ${srcdir}/gen_ivanalyzeflags.sh  ${srcdir} curve.c
 pvcraze.h: models.h
 	${SHELL} ${srcdir}/collect_headers.sh ${srcdir}

@@ -250,7 +250,7 @@ Output:\n\
 	AnalyzeFlag *T;
 	int i,j,N, n, nm;
 	charMatrix message;
-	int32NDArray FF;
+	uint32NDArray FF;
 	boolMatrix err;
 	octave_value_list retval;
 	
@@ -261,7 +261,7 @@ Output:\n\
 		return retval;	
 	}
 	dim_vector dim(N,1);
-	FF=int32NDArray(dim);
+	FF=uint32NDArray(dim);
 	err=boolMatrix(N,1);
 	nm=0;
 	for (i=0;i<N;i++)
@@ -275,7 +275,7 @@ Output:\n\
 	
 	for (i=0;i<N;i++)
 	{
-		FF(i)=(int)T[i].FLAG;
+		FF(i)=T[i].FLAG;
 		
 		n=strlen(T[i].message);	
 		for (j=0;j<n;j++)
@@ -305,7 +305,7 @@ Input:\n\
 @item @var{IV}: Cell array with arrays with two columns (voltage,current)\n\
 @item \'models\':  (Optional) Takes a model string (this option may be passed multiple times)\n\
 @item \'mpp-method\': (Optional) Select mpp method, can be \'f\' (fast, not robust), \'r\' (robust), 'p' (parametric), or 's' Savitsky-Golay \n\
-@item \'S_filter\': (Optional) Takes boolean, Apply a 3rd order median filter on the data\n\
+@item \'S_filter\': (Optional) Takes boolean, Apply a 3rd order median filter on the currents (removes spikes). default true\n\
 @item \'I_filter\':  (Optional) Takes positive float. Filter out subsequent identical voltage and current values. Specify minimum deviation. default 1e-12\n\
 @item \'mpp-dv\':  (Optional) Takes float [0-1]. The mpp fitting range starts at (1-mpp-dv) Vmpp. default 0.12\n\
 @item \'mpp-di\':  (Optional) Takes float [0-1]. The mpp fitting range ends at (1-mpp-di) Impp. default  0.12\n\
@@ -327,7 +327,7 @@ Output:\n\
 	octave_value_list retval;
 	Cell IV;
 	Matrix iv, EPar, FErr, PErr;
-	int32NDArray Flags; 
+	uint32NDArray Flags;
 	Cell MPar, MEPar;
 	OPT_PARS parse=NONE;
 	ProcessSettings Set;
@@ -445,7 +445,7 @@ Output:\n\
 	
 	EPar=Matrix(Nc,10);
 	dim_vector dim(Nc,1);
-	Flags=int32NDArray(dim);
+	Flags=uint32NDArray(dim);
 	if (Set.L.N)
 	{
 		MPar=Cell(Nc, Set.L.N);

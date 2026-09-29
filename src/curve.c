@@ -43,83 +43,38 @@ curvepars nullpars={0,0,0,0,0,0,0,0,0,0};
  *   - sort voltages in ascending order
  * ****************************************************************** */
 
-/* third order median filter (for removing spikes) */
+/* third order median filter (for removing spikes)
+ * Replaces the current of every interior point by the median of itself and its
+ * two neighbours. The curve must be sorted by voltage (see PreprocessCurve); a
+ * median of the voltages would then be a no-op, so only currents are filtered.
+ * The end points have only one neighbour and are left as they are.
+ * Returns 2 on malloc failure, 0 otherwise */
 int MedianFilter3rd(curve *C)
 {
-	int i, index;
-	double c;
-	curve B;
-	
-	double x[3];
-	double y[3];
-	if (C->N<MINPOINTS+2)
-		return 1; // insufficient data
-	
-	/* make a copy to work on */
-	B.N=C->N;
-	if((B.P=Emalloc(B.N*sizeof(point)))==NULL)
+	int i;
+	double a, b, c, *y;
+	if (C->N<3)
+		return 0;
+	if ((y=Emalloc(C->N*sizeof(double)))==NULL)
 		return 2;
-	for (i=0;i<B.N;i++)
-		B.P[i]=C->P[i];
-	for (index=1;index<B.N-1;index++)
+	for (i=0;i<C->N;i++)
+		y[i]=C->P[i].y;
+	for (i=1;i<C->N-1;i++)
 	{
-		/* construct arrays x and y at this position */
-		for (i=0;i<3;i++)
+		a=y[i-1];
+		b=y[i];
+		c=y[i+1];
+		if (a>b)
 		{
-			x[i]=B.P[index+i-1].x;
-			y[i]=B.P[index+i-1].y;
+			double t=a;
+			a=b;
+			b=t;
 		}
-		
-		if (x[0]>x[1])
-		{
-			c=x[0];
-			x[0]=x[1];
-			x[1]=c;
-		}
-		if (x[1]>x[2])
-		{
-			c=x[1];
-			x[1]=x[2];
-			x[2]=c;
-			if (x[0]>x[1])
-			{
-				c=x[0];
-				x[0]=x[1];
-				x[1]=c;
-			}
-		}
-		if (y[0]>y[1])
-		{
-			c=y[0];
-			y[0]=y[1];
-			y[1]=c;
-		}
-		if (y[1]>y[2])
-		{
-			c=y[1];
-			y[1]=y[2];
-			y[2]=c;
-			if (y[0]>y[1])
-			{
-				c=y[0];
-				y[0]=y[1];
-				y[1]=c;
-			}
-		}
-		
-		/* apply median filter */
-		C->P[index].x=x[1]; 
-		C->P[index].y=y[1]; 
+		if (b>c)
+			b=c;
+		C->P[i].y=(a>b) ? a : b;
 	}
-	free(B.P);
-	/* remove the endpoints, we cannot filter spikes there */
-	for (i=0;i<C->N-2;i++)
-		C->P[i]=C->P[i+1];
-	C->P[C->N-2].x=NAN;
-	C->P[C->N-2].y=NAN;
-	C->P[C->N-1].x=NAN;
-	C->P[C->N-1].y=NAN;
-	C->N-=2;
+	free(y);
 	return 0;
 }
 
@@ -275,7 +230,245 @@ void MinMax(curve C, point *min, point *max)
 	max->y=ymax;
 
 }
-curve CheckAndFilterCurve(curve C, int *FLAGCODE, analyze_settings settings)
+/* ******************************************************************
+ * Data quality checks
+ * Thresholds were tuned on ~2.2 million outdoor IV curves. Curves are
+ * sorted in voltage and limited to the active range (see PreprocessCurve).
+ * ****************************************************************** */
+#define OUTLIER_TH 0.05	/* outlier: current deviates more than OUTLIER_TH*Iref from the median of itself and its neighbours */
+#define NOISE_TH 0.05	/* noisy: RMS deviation from the best monotone fit exceeds NOISE_TH*(Imax-Imin) */
+#define NOISE_NOUT 3	/* noisy: this many (or more) outliers */
+#define STEP_TH 0.05	/* steps: power swings of more than STEP_TH*Pmax separate the power maxima */
+
+static double Median3(double a, double b, double c)
+{
+	if (a>b)
+	{
+		double t=a;
+		a=b;
+		b=t;
+	}
+	if (b>c)
+		b=c;
+	return (a>b) ? a : b;
+}
+
+/* Detect isolated outliers in the current, i.e. interior points that deviate
+ * from the median of themselves and their two neighbours. If repair is set,
+ * such points are replaced by linear interpolation of their neighbours (only
+ * used on a copy for judging the noise level).
+ * Iref is the largest 3-point median of the current, so a single spike does
+ * not set the scale. Returns the number of outliers, or -1 on malloc failure */
+int FindOutliers(curve *C, int repair)
+{
+	int i, n=0;
+	double *y, iref=0, m, t;
+	if (C->N<3)
+		return 0;
+	if ((y=Emalloc(C->N*sizeof(double)))==NULL)
+		return -1;
+	for (i=0;i<C->N;i++)
+		y[i]=C->P[i].y;
+	for (i=1;i<C->N-1;i++)
+	{
+		m=Median3(y[i-1], y[i], y[i+1]);
+		if (m>iref)
+			iref=m;
+	}
+	if (iref>0)
+		for (i=1;i<C->N-1;i++)
+		{
+			m=Median3(y[i-1], y[i], y[i+1]);
+			if (fabs(y[i]-m)>OUTLIER_TH*iref)
+			{
+				n++;
+				if (repair)
+				{
+					t=C->P[i+1].x-C->P[i-1].x;
+					t=(t>0) ? (C->P[i].x-C->P[i-1].x)/t : 0.5;
+					C->P[i].y=y[i-1]+t*(y[i+1]-y[i-1]);
+				}
+			}
+		}
+	free(y);
+	return n;
+}
+
+/* least squares non-increasing fit of y (pool adjacent violators), written to f 
+ * returns 1 on malloc failure */
+static int MonotoneFit(const double *y, int n, double *f)
+{
+	double *v;
+	int *len, m=0, i, j, k=0;
+	v=Emalloc(n*sizeof(double));
+	len=Emalloc(n*sizeof(int));
+	if ((v==NULL)||(len==NULL))
+	{
+		free(v);
+		free(len);
+		return 1;
+	}
+	for (i=0;i<n;i++)
+	{
+		v[m]=y[i];
+		len[m]=1;
+		m++;
+		while ((m>1)&&(v[m-2]<v[m-1]))
+		{
+			v[m-2]=(v[m-2]*len[m-2]+v[m-1]*len[m-1])/(len[m-2]+len[m-1]);
+			len[m-2]+=len[m-1];
+			m--;
+		}
+	}
+	for (i=0;i<m;i++)
+		for (j=0;j<len[i];j++)
+			f[k++]=v[i];
+	free(v);
+	free(len);
+	return 0;
+}
+
+/* Data quality: RMS deviation of the current from the best monotone
+ * (non-increasing) fit, relative to the current range. Real IV curves are
+ * monotone, so this measures noise independent of the number of points.
+ * On return f holds the monotone fit. Returns -1 on failure. */
+static double MonotoneNoise(curve C, double *f)
+{
+	int i;
+	double *y, d, e=0, ymin, ymax;
+	if (C.N<2)
+		return 0;
+	if ((y=Emalloc(C.N*sizeof(double)))==NULL)
+		return -1;
+	ymin=ymax=C.P[0].y;
+	for (i=0;i<C.N;i++)
+	{
+		y[i]=C.P[i].y;
+		if (y[i]<ymin)
+			ymin=y[i];
+		if (y[i]>ymax)
+			ymax=y[i];
+	}
+	if (MonotoneFit(y, C.N, f))
+	{
+		free(y);
+		return -1;
+	}
+	for (i=0;i<C.N;i++)
+	{
+		d=y[i]-f[i];
+		e+=d*d;
+	}
+	free(y);
+	if (ymax<=ymin)
+		return 0;
+	return sqrt(e/C.N)/(ymax-ymin);
+}
+
+/* Count the power maxima of V*I, with I the monotone fit f of the current
+ * (so V jitter does not create spurious maxima). Maxima count when they are
+ * separated by power swings larger than STEP_TH*Pmax (hysteresis peak
+ * detection). A normal IV curve has one maximum, curves with steps (e.g.
+ * mismatch and bypass diodes) have more */
+static int CountPowerMaxima(curve C, const double *f)
+{
+	int i, n=0, lookmax=1;
+	double p, pmax=0, d, mx=-HUGE_VAL, mn=HUGE_VAL;
+	for (i=0;i<C.N;i++)
+		if (C.P[i].x*f[i]>pmax)
+			pmax=C.P[i].x*f[i];
+	d=STEP_TH*pmax;
+	for (i=0;i<C.N;i++)
+	{
+		p=C.P[i].x*f[i];
+		if (lookmax)
+		{
+			if (p>mx)
+				mx=p;
+			else if (p<mx-d)
+			{
+				n++;
+				lookmax=0;
+				mn=p;
+			}
+		}
+		else
+		{
+			if (p<mn)
+				mn=p;
+			else if (p>mn+d)
+			{
+				lookmax=1;
+				mx=p;
+			}
+		}
+	}
+	if (lookmax)
+	{
+		if ((n==0)&&(C.N>0))
+			n=1;
+		else if (mx>mn+d)
+			n++; /* final maximum at the end of the data */
+	}
+	return n;
+}
+
+/* run the data quality checks on a preprocessed curve and raise flags. The
+ * curve itself is not changed (outliers are removed by the spike filter).
+ * Returns 1 if the curve is unusable */
+static int QualityChecks(curve *Cn, unsigned int *FLAGCODE)
+{
+	curve Cr;
+	double *f, noise;
+	int i, nout;
+	
+	/* judge the noise on a copy with the outliers repaired, so a single spike
+	 * does not make a curve "noisy" */
+	Cr.N=Cn->N;
+	Cr.P=Emalloc(Cn->N*sizeof(point));
+	f=Emalloc(Cn->N*sizeof(double));
+	if ((Cr.P==NULL)||(f==NULL))
+	{
+		free(Cr.P);
+		free(f);
+		(*FLAGCODE)|=FLAG_CODE(FLAG_MALLOCFAIL);
+		return 1;
+	}
+	for (i=0;i<Cn->N;i++)
+		Cr.P[i]=Cn->P[i];
+	nout=FindOutliers(&Cr, 1);
+	noise=(nout<0) ? -1 : MonotoneNoise(Cr, f);
+	if (noise<0)
+	{
+		free(Cr.P);
+		free(f);
+		(*FLAGCODE)|=FLAG_CODE(FLAG_MALLOCFAIL);
+		return 1;
+	}
+	if ((nout>=NOISE_NOUT)||(noise>NOISE_TH))
+	{
+		//IVFLAGERR  FLAG_NOISY_IV  32  "IV data too noisy (not a monotone curve or many outliers)"
+		(*FLAGCODE)|=FLAG_CODE(FLAG_NOISY_IV);
+		free(Cr.P);
+		free(f);
+		return 1;
+	}
+	if (nout>0)
+	{
+		//IVFLAGWARN  FLAG_OUTLIERS  30  "Isolated outlier points in the IV data"
+		(*FLAGCODE)|=FLAG_CODE(FLAG_OUTLIERS);
+	}
+	if (CountPowerMaxima(Cr, f)>1)
+	{
+		//IVFLAGWARN  FLAG_IV_STEPS  31  "IV has steps: several power maxima (e.g. mismatch or bypass diodes)"
+		(*FLAGCODE)|=FLAG_CODE(FLAG_IV_STEPS);
+	}
+	free(Cr.P);
+	free(f);
+	return 0;
+}
+
+curve CheckAndFilterCurve(curve C, unsigned int *FLAGCODE, analyze_settings settings)
 {
 	curve Cn={0};
 	point min, max;
@@ -293,14 +486,14 @@ curve CheckAndFilterCurve(curve C, int *FLAGCODE, analyze_settings settings)
 	}
 	if (Cn.N<MINPOINTS)
 	{
-		//IVFLAGERR  FLAG_INSUFFIVDATA  "Insufficient data points in IV characteristics"
+		//IVFLAGERR  FLAG_INSUFFIVDATA  8  "Insufficient data points in IV characteristics"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFFIVDATA);
 		return Cn;		
 	}
 	MinMax(Cn, &min, &max);
 	if (min.y/(max.y+1e-12)>1.0-settings.MinRelRange)
 	{
-		//IVFLAGERR  FLAG_INSUFF_I_RANGE "Relative Current range too small"
+		//IVFLAGERR  FLAG_INSUFF_I_RANGE  9  "Relative Current range too small"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_I_RANGE);
 		return Cn;		
 	}
@@ -308,13 +501,21 @@ curve CheckAndFilterCurve(curve C, int *FLAGCODE, analyze_settings settings)
 	
 	if (min.x/(max.x+1e-12)>1.0-settings.MinRelRange)
 	{
-		//IVFLAGERR  FLAG_INSUFF_V_RANGE "Relative Voltage range too small"
+		//IVFLAGERR  FLAG_INSUFF_V_RANGE  10  "Relative Voltage range too small"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_V_RANGE);
 		return Cn;	
 	}
 		
 	if (settings.Identicals)
 		IdenticalFilter(&Cn, settings.IdentEps);
+	
+	if (Cn.N<MINPOINTS)
+	{
+		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFFIVDATA);
+		return Cn;		
+	}
+	if (QualityChecks(&Cn, FLAGCODE))
+		return Cn;
 		
 	if (settings.SpikeFilter)
 	{
@@ -325,11 +526,6 @@ curve CheckAndFilterCurve(curve C, int *FLAGCODE, analyze_settings settings)
 			(*FLAGCODE)|=FLAG_CODE(FLAG_MALLOCFAIL);
 			return Cn;
 		}
-		else if (r==1)
-		{
-			(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFFIVDATA);
-			return Cn;		
-		}		
 		if (settings.Identicals)
 			IdenticalFilter(&Cn, settings.IdentEps);
 	}	
@@ -339,6 +535,13 @@ curve CheckAndFilterCurve(curve C, int *FLAGCODE, analyze_settings settings)
 	return Cn;	
 }
 
+/* symmetric 2nd order least squares fit with kernelsize 7 (t=-3..3):
+ * coefficients a0, a1, a2 of a0+a1*t+a2*t^2 */
+const double LSFIT_27[3][7] = {
+				{-2.0/21, 3.0/21, 6.0/21, 7.0/21, 6.0/21, 3.0/21, -2.0/21},
+				{-3.0/28, -2.0/28, -1.0/28, 0.0, 1.0/28, 2.0/28, 3.0/28},
+				{ 5.0/84, 0.0, -3.0/84, -4.0/84, -3.0/84, 0.0, 5.0/84}
+				};
 /* symmetric 3rd order SG filters with kernelsize 7 */
 /* determine a0 a1 a2 and a3 */ 
 const double LSFIT_33[4][7] = {
@@ -349,18 +552,19 @@ const double LSFIT_33[4][7] = {
 			    };
 
 // find the MPP using 3rd order Savitzky-Golay filter
-void MppByLeastSsquaresFit(curve C, int i_mpp, double *Vmpp, double *Impp, int *FLAGCODE, analyze_settings settings)
+void MppByLeastSsquaresFit(curve C, int i_mpp, double *Vmpp, double *Impp, unsigned int *FLAGCODE, analyze_settings settings)
 {
 	int i,j;
 	int idx[7]={-3,-2,-1,0,1,2,3};
 	double av[4], ai[4], ap[4];
-	double p1=-1, p2=-1, t1, t2, D;
+	double t=0, D;
+	int found=0, nt;
 	(*Vmpp)=C.P[i_mpp].x;
 	(*Impp)=C.P[i_mpp].y;
 	
 	if ((i_mpp<3)||(C.N-1-i_mpp<3))
 	{
-		//IVFLAGERR  FLAG_INSUFFMPP  "Insufficient data around mpp"
+		//IVFLAGERR  FLAG_INSUFFMPP  11  "Insufficient data around mpp"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFFMPP);
 		(*Vmpp)=C.P[i_mpp].x;
 		(*Impp)=C.P[i_mpp].y;
@@ -406,50 +610,69 @@ void MppByLeastSsquaresFit(curve C, int i_mpp, double *Vmpp, double *Impp, int *
 			
 		}
 	}
+	/* The fits are cubic polynomials in the kernel position t (-3..3):
+	 * P(t)=ap[0]+ap[1]*t+ap[2]*t^2+ap[3]*t^3 (same for V and I).
+	 * Take the maximum of P within the window, i.e. the stationary point with P''<0 */
 	D=ap[2]*ap[2]-3*ap[1]*ap[3];
-	
-	if (D<0)
+	nt=0;
+	if ((D>=0)&&(ap[3]!=0))
 	{
+		double ts[2];
+		ts[0]=-(sqrt(D)+ap[2])/(3*ap[3]);
+		ts[1]=(sqrt(D)-ap[2])/(3*ap[3]);
+		for (j=0;j<2;j++)
+		{
+			if (fabs(ts[j])<3)
+			{
+				nt++;
+				if (2*ap[2]+6*ap[3]*ts[j]<0)
+				{
+					t=ts[j];
+					found=1;
+				}
+			}
+		}
+	}
+	else if ((ap[3]==0)&&(ap[2]<0))
+	{
+		t=-ap[1]/(2*ap[2]);
+		found=(fabs(t)<3);
+	}
+	if (found&&(nt==2))
+	{
+		/* both a maximum and a minimum of the cubic in the window */
+		(*FLAGCODE)|=FLAG_CODE(FLAG_MULTIPLEMPP);
+	}
+	if (!found)
+	{
+		/* The cubic has no maximum within the window, e.g. because a single
+		 * noisy point dominates it. The window is centered on the discrete
+		 * maximum, so a maximum does exist: fall back to a least squares
+		 * parabola, which is less sensitive to single points */
+		double q1=0, q2=0;
+		for (j=0;j<7;j++)
+		{
+			double p=C.P[i_mpp+idx[j]].x*C.P[i_mpp+idx[j]].y;
+			q1+=LSFIT_27[1][j]*p;
+			q2+=LSFIT_27[2][j]*p;
+		}
+		if (q2<0)
+		{
+			t=-q1/(2*q2);
+			found=(fabs(t)<3);
+		}
+	}
+	if (!found)
+	{
+		//IVFLAGERR  FLAG_NOMPP  12  "No power maximum"
+		//IVFLAGWARN  FLAG_MULTIPLEMPP  1  "more than one power maximum"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_NOMPP);
 		(*Vmpp)=C.P[i_mpp].x;
 		(*Impp)=C.P[i_mpp].y;
 		return;
 	}
-	
-	t1=-(sqrt(D)+ap[2])/(3*ap[3]);
-	
-	if (fabs(t1)<3)
-		p1=ap[0]+ap[1]*t1+2*ap[2]*t1*t1+3*ap[3]*t1*t1*t1;
-	
-	t2=(sqrt(D)-ap[2])/(3*ap[3]);
-	
-	if (fabs(t2)<3)
-		p2=ap[0]+ap[1]*t2+2*ap[2]*t2*t2+3*ap[3]*t2*t2*t2;
-		
-	if (p1*p2>0)
-	{
-		/* either 0 or two solutions */
-		//IVFLAGERR  FLAG_NOMPP  "No power maximum"
-		//IVFLAGWARN  FLAG_MULTIPLEMPP  "more than one power maximum"
-		if (p1<0)
-			(*FLAGCODE)|=FLAG_CODE(FLAG_NOMPP);
-		else
-			(*FLAGCODE)|=FLAG_CODE(FLAG_MULTIPLEMPP);
-		(*Vmpp)=C.P[i_mpp].x;
-		(*Impp)=C.P[i_mpp].y;
-		return;
-	}
-	
-	if (p1>p2)
-	{
-		(*Vmpp)=av[0]+av[1]*t1+2*av[2]*t1*t1+3*av[3]*t1*t1*t1;
-		(*Impp)=ai[0]+ai[1]*t1+2*ai[2]*t1*t1+3*ai[3]*t1*t1*t1;
-	}
-	else
-	{
-		(*Vmpp)=av[0]+av[1]*t2+2*av[2]*t2*t2+3*av[3]*t2*t2*t2;
-		(*Impp)=ai[0]+ai[1]*t2+2*ai[2]*t2*t2+3*ai[3]*t2*t2*t2;	
-	}
+	(*Vmpp)=((av[3]*t+av[2])*t+av[1])*t+av[0];
+	(*Impp)=((ai[3]*t+ai[2])*t+ai[1])*t+ai[0];
 }
 
 // find the MPP using SVD
@@ -457,7 +680,7 @@ extern void dgelsd_( int* m, int* n, int* nrhs, double* a, int* lda,
                 double* b, int* ldb, double* s, double* rcond, int* rank,
                 double* work, int* lwork, int* iwork, int* info );
 
-void GetMPPLSQ(curve *C, int i_mpp, double *Vmpp, double *Impp, int *FLAGCODE, analyze_settings settings)
+void GetMPPLSQ(curve *C, int i_mpp, double *Vmpp, double *Impp, unsigned int *FLAGCODE, analyze_settings settings)
 {
 	double *M, *b, *s;
 	int N, Nr, is, ie, i, j, k;
@@ -506,7 +729,7 @@ void GetMPPLSQ(curve *C, int i_mpp, double *Vmpp, double *Impp, int *FLAGCODE, a
 	N=(order+1)*Nr;
 	if((M=Emalloc(N*sizeof(double)))==NULL)
 	{
-		//IVFLAGERR  FLAG_MALLOCFAIL  "Failed to analyze, malloc fail"
+		//IVFLAGERR  FLAG_MALLOCFAIL  13  "Failed to analyze, malloc fail"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_MALLOCFAIL);
 		return;
 	}	
@@ -649,7 +872,7 @@ void GetMPPLSQ(curve *C, int i_mpp, double *Vmpp, double *Impp, int *FLAGCODE, a
 	}
 	else
 	{
-		//IVFLAGWARN  FLAG_SVDFAIL  "SVD failed, could not solve OLS mpp"
+		//IVFLAGWARN  FLAG_SVDFAIL  2  "SVD failed, could not solve OLS mpp"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_SVDFAIL);
 	}
 FreeGetMPPLSQ:
@@ -661,7 +884,7 @@ FreeGetMPPLSQ:
 }
 
 #define LSQMPP   
-void GetMpp(curve Cn, int *FLAGCODE, double *Vmpp, double *Impp, int *iim, analyze_settings settings)
+void GetMpp(curve Cn, unsigned int *FLAGCODE, double *Vmpp, double *Impp, int *iim, analyze_settings settings)
 {
 	int i, im=0;
 	double Pmax;
@@ -725,12 +948,12 @@ void GetMpp(curve Cn, int *FLAGCODE, double *Vmpp, double *Impp, int *iim, analy
 	(*iim)=im;
 }
 
-void GetQMPPs(curve Cn, int *FLAGCODE, double Vmpp, double Impp, double *Vqmp1, double *Iqmp1, double *Vqmp2, double *Iqmp2, analyze_settings settings)
+void GetQMPPs(curve Cn, unsigned int *FLAGCODE, double Vmpp, double Impp, double *Vqmp1, double *Iqmp1, double *Vqmp2, double *Iqmp2, analyze_settings settings)
 {
 	int i, im=0;
 	double Pmax;
 	curve Cx={0};
-	int f=0;
+	unsigned int f=0;
 	
 	if (Cn.N<=0)
 	{
@@ -812,15 +1035,15 @@ void GetQMPPs(curve Cn, int *FLAGCODE, double Vmpp, double Impp, double *Vqmp1, 
 		case 0:
 			break;
 		case FLAG_CODE(FLAG_INSUFFMPP):
-				//IVFLAGERR  FLAG_INSUFF_QMPM  "Insufficient data to determine the qmp- point"
+				//IVFLAGERR  FLAG_INSUFF_QMPM  14  "Insufficient data to determine the qmp- point"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_QMPM);
 				break;
 		case FLAG_CODE(FLAG_NOMPP):
-				//IVFLAGERR  FLAG_NOQMPM  "the qmp- point does not exist"
+				//IVFLAGERR  FLAG_NOQMPM  15  "the qmp- point does not exist"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_NOQMPM);
 				break;
 		case FLAG_CODE(FLAG_MULTIPLEMPP):
-				//IVFLAGWARN  FLAG_MULTIPLEQMPM  "more than one qmp- points"
+				//IVFLAGWARN  FLAG_MULTIPLEQMPM  3  "more than one qmp- points"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_MULTIPLEQMPM);
 		default:
 				break;
@@ -892,15 +1115,15 @@ void GetQMPPs(curve Cn, int *FLAGCODE, double Vmpp, double Impp, double *Vqmp1, 
 		case 0:
 			break;
 		case FLAG_CODE(FLAG_INSUFFMPP):
-				//IVFLAGERR  FLAG_INSUFF_QMPP  "Insufficient data to determine the qmp+ point"
+				//IVFLAGERR  FLAG_INSUFF_QMPP  16  "Insufficient data to determine the qmp+ point"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_QMPP);
 				break;
 		case FLAG_CODE(FLAG_NOMPP):
-				//IVFLAGERR  FLAG_NOQMPP  "the qmp+ point does not exist"
+				//IVFLAGERR  FLAG_NOQMPP  17  "the qmp+ point does not exist"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_NOQMPP);
 				break;
 		case FLAG_CODE(FLAG_MULTIPLEMPP):
-				//IVFLAGWARN  FLAG_MULTIPLEQMPP  "more than one qmp+ points"
+				//IVFLAGWARN  FLAG_MULTIPLEQMPP  4  "more than one qmp+ points"
 				(*FLAGCODE)|=FLAG_CODE(FLAG_MULTIPLEQMPP);
 		default:
 				break;
@@ -947,85 +1170,85 @@ int FlagMono(curvepars par)
 }
 
 
-int CheckPars(curvepars par, int *FLAGCODE)
+int CheckPars(curvepars par, unsigned int *FLAGCODE)
 {
 	int R=1;
 	if (!isfinite(par.Isc))
 	{
-		//IVFLAGERR  FLAG_ISC_NOT_FINITE  "Isc is not finite"
+		//IVFLAGERR  FLAG_ISC_NOT_FINITE  18  "Isc is not finite"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_ISC_NOT_FINITE);
 		R=0;
 	}
 	if (!isfinite(par.Voc))
 	{
-		//IVFLAGERR  FLAG_VOC_NOT_FINITE  "Voc is not finite"
+		//IVFLAGERR  FLAG_VOC_NOT_FINITE  19  "Voc is not finite"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_VOC_NOT_FINITE);
 		R=0;
 	}
 	if (!isfinite(par.Vmpp))
 	{
-		//IVFLAGERR  FLAG_VMPP_NOT_FINITE  "Vmpp is not finite"
+		//IVFLAGERR  FLAG_VMPP_NOT_FINITE  20  "Vmpp is not finite"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_VMPP_NOT_FINITE);
 		R=0;
 	}
 	if (!isfinite(par.Impp))
 	{
-		//IVFLAGERR  FLAG_IMPP_NOT_FINITE  "Impp is not finite"
+		//IVFLAGERR  FLAG_IMPP_NOT_FINITE  21  "Impp is not finite"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_IMPP_NOT_FINITE);
 		R=0;
 	}
 	
 	if (par.Isc<0)
 	{
-		//IVFLAGERR  FLAG_ISC_NEGATIVE  "Isc is negative"
+		//IVFLAGERR  FLAG_ISC_NEGATIVE  22  "Isc is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_ISC_NEGATIVE);
 		R=0;
 	}
 	if (par.Gsc<0) // not an error
 	{
-		//IVFLAGWARN  FLAG_GSC_NEGATIVE  "Gsc is negative"
+		//IVFLAGWARN  FLAG_GSC_NEGATIVE  5  "Gsc is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_GSC_NEGATIVE);
 		R=1;// problem is second order at best so we warn and continue
 	}
 	if (par.Voc<0)
 	{
-		//IVFLAGERR  FLAG_VOC_NEGATIVE  "Voc is negative"
+		//IVFLAGERR  FLAG_VOC_NEGATIVE  23  "Voc is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_VOC_NEGATIVE);
 		R=0;
 	}
 	if (par.Roc<0) // this is, multivalued I vs V is not normal
 	{
-		//IVFLAGERR  FLAG_ROC_NEGATIVE  "Roc is negative"
+		//IVFLAGERR  FLAG_ROC_NEGATIVE  24  "Roc is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_ROC_NEGATIVE);
 		R=1;
 	}
 	if (par.Vmpp<0) 
 	{
-		//IVFLAGERR  FLAG_VMPP_NEG  "Vmpp is negative"
+		//IVFLAGERR  FLAG_VMPP_NEG  25  "Vmpp is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_VMPP_NEG);
 		R=0;
 	}
 	if (par.Vmpp>par.Voc) // multivalued, i.e. error
 	{
-		//IVFLAGERR  FLAG_VMPP_GT_VOC  "Vmpp is larger than Voc"
+		//IVFLAGERR  FLAG_VMPP_GT_VOC  26  "Vmpp is larger than Voc"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_VMPP_GT_VOC);
 		R=0;
 	}
 	if (par.Impp<0)
 	{
-		//IVFLAGERR  FLAG_IMPP_NEG  "Impp is negative"
+		//IVFLAGERR  FLAG_IMPP_NEG  27  "Impp is negative"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_IMPP_NEG);
 		R=0;
 	}
 	if (par.Impp>par.Isc)
 	{
-		//IVFLAGWARN  FLAG_IMPP_GT_ISC  "Impp is larger than Isc"
+		//IVFLAGWARN  FLAG_IMPP_GT_ISC  6  "Impp is larger than Isc"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_IMPP_GT_ISC);
 		R=0;
 	}
 	if (FlagMono(par))
 	{
-		//IVFLAGWARN  FLAG_IV_NOT_MONO  "IV parameters are not monotone"
+		//IVFLAGWARN  FLAG_IV_NOT_MONO  7  "IV parameters are not monotone"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_IV_NOT_MONO);
 		R=0;
 	}
@@ -1125,7 +1348,7 @@ void print_matrix(int n, int m, double* a)
  *    Imin+settings.OC_f_I*Iqmp2
  */ 
 #define RCEPS 1e-14
-void GetOcpLSQ(curve *Cn, int *FLAGCODE, int order, double Iqmp2, double *Voc, double *Roc, analyze_settings settings)
+void GetOcpLSQ(curve *Cn, unsigned int *FLAGCODE, int order, double Iqmp2, double *Voc, double *Roc, analyze_settings settings)
 {
 	double *M, *b, *s;
 	int N, Nr, i, j, k;
@@ -1156,7 +1379,7 @@ void GetOcpLSQ(curve *Cn, int *FLAGCODE, int order, double Iqmp2, double *Voc, d
 	N=(order+1)*Nr;
 	if ((Nr<order+1)||(Imin+settings.OC_f_I*Iqmp2>Iqmp2))
 	{
-		//IVFLAGERR  FLAG_INSUFF_VOC_RANGE  "Insufficient data to reliably determine Voc"
+		//IVFLAGERR  FLAG_INSUFF_VOC_RANGE  28  "Insufficient data to reliably determine Voc"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_VOC_RANGE);
 		(*Voc)=Cn->P[Cn->N-1].x;
 		(*Roc)=1e-12;
@@ -1262,7 +1485,7 @@ void GetOcpLSQ(curve *Cn, int *FLAGCODE, int order, double Iqmp2, double *Voc, d
  * we do a linear extrapolation from close to the end:
  *    Vmin+settings.SC_f_V*Vqmp1
  */   
-void GetScpLSQ(curve *Cn, int *FLAGCODE, int order, double Vqmp1, double *Isc, double *Gsc, analyze_settings settings)
+void GetScpLSQ(curve *Cn, unsigned int *FLAGCODE, int order, double Vqmp1, double *Isc, double *Gsc, analyze_settings settings)
 {
 	double *M, *b, *s;
 	int N, Nr, i, j, k;
@@ -1289,7 +1512,7 @@ void GetScpLSQ(curve *Cn, int *FLAGCODE, int order, double Vqmp1, double *Isc, d
 	N=(order+1)*Nr;
 	if ((Nr<order+1)||(Vmin+settings.SC_f_V*Vqmp1>Vqmp1))
 	{
-		//IVFLAGERR  FLAG_INSUFF_ISC_RANGE  "Insufficient data to reliably determine Isc"
+		//IVFLAGERR  FLAG_INSUFF_ISC_RANGE  29  "Insufficient data to reliably determine Isc"
 		(*FLAGCODE)|=FLAG_CODE(FLAG_INSUFF_ISC_RANGE);
 		(*Isc)=Cn->P[0].y;
 		(*Gsc)=1e12;
@@ -1409,7 +1632,7 @@ void GetScpLSQ(curve *Cn, int *FLAGCODE, int order, double Vqmp1, double *Isc, d
 #define H01dot(t) (-6*(t)*(t)+6*(t))
 #define H11dot(t) (3*(t)*(t)-2*(t))
 
-void GetOcpLSQ_(curve *Cn, int *FLAGCODE, double Vmpp, double Vqmp2, double Iqmp2, double *Voc, double *Roc, analyze_settings settings)
+void GetOcpLSQ_(curve *Cn, unsigned int *FLAGCODE, double Vmpp, double Vqmp2, double Iqmp2, double *Voc, double *Roc, analyze_settings settings)
 {
 	double *M, *b, *s;
 	int N, Nr, i;
@@ -1533,7 +1756,7 @@ void GetOcpLSQ_(curve *Cn, int *FLAGCODE, double Vmpp, double Vqmp2, double Iqmp
 	free(iwork);
 }
 
-void GetScpLSQ_(curve *Cn, int *FLAGCODE, double Impp, double Vqmp1, double Iqmp1, double *Isc, double *Gsc, analyze_settings settings)
+void GetScpLSQ_(curve *Cn, unsigned int *FLAGCODE, double Impp, double Vqmp1, double Iqmp1, double *Isc, double *Gsc, analyze_settings settings)
 {
 	double *M, *b, *s;
 	int N, Nr, i;
@@ -1660,7 +1883,7 @@ void GetScpLSQ_(curve *Cn, int *FLAGCODE, double Impp, double Vqmp1, double Iqmp
 }
        
 
-curvepars AnalyzeLSQ(curve C, curve *Cout, int *FLAGCODE, analyze_settings settings)
+curvepars AnalyzeLSQ(curve C, curve *Cout, unsigned int *FLAGCODE, analyze_settings settings)
 /* Analyze:
  * Input:
  * 	C		- IV data
@@ -1671,11 +1894,12 @@ curvepars AnalyzeLSQ(curve C, curve *Cout, int *FLAGCODE, analyze_settings setti
 {
 	curvepars par=nullpars;
 	curve Cn={0};
-	int im, f=0;
+	int im;
+	unsigned int f=0;
 	Cn=CheckAndFilterCurve(C, &f, settings);
-	if (f)
+	(*FLAGCODE)|=f;
+	if (f&IV_ERROR_MASK)
 	{
-		(*FLAGCODE)|=f;
 		if (Cout)
 		{
 			Cout->N=Cn.N;

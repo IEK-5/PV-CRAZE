@@ -483,7 +483,7 @@ static PyObject *core_flag_table(PyObject *self, PyObject *noargs)
 		return NULL;
 	for (i=1; i<NIVF; i++)
 	{
-		item=Py_BuildValue("(kssO)", (unsigned long)FLAG_CODE(i), Fname(i), Fmessage(i), (i>=NIVWARN) ? Py_True : Py_False);
+		item=Py_BuildValue("(kssO)", (unsigned long)FLAG_CODE(i), Fname(i), Fmessage(i), Fiserror(i) ? Py_True : Py_False);
 		if ((item==NULL)||(PyList_Append(list, item)<0))
 		{
 			Py_XDECREF(item);

@@ -227,6 +227,64 @@ def test_flag_helpers():
     assert pc.ERROR_MASK & pc.WARNING_MASK == 0
 
 
+def test_flag_numbers_are_stable():
+    # flag codes are stored by users; they must never change
+    assert pc.Flag.MULTIPLEMPP == 1 << 0
+    assert pc.Flag.IV_NOT_MONO == 1 << 6
+    assert pc.Flag.INSUFFIVDATA == 1 << 7
+    assert pc.Flag.INSUFF_I_RANGE == 1 << 8
+    assert pc.Flag.NOMPP == 1 << 11
+    assert pc.Flag.INSUFF_ISC_RANGE == 1 << 28
+    assert pc.Flag.OUTLIERS == 1 << 29 and not pc.Flag.OUTLIERS.has_error
+    assert pc.Flag.IV_STEPS == 1 << 30 and not pc.Flag.IV_STEPS.has_error
+    assert pc.Flag.NOISY_IV == 1 << 31 and pc.Flag.NOISY_IV.has_error
+
+
+# ---------------------------------------------------------------- data quality
+def _diode(V, iph=0.035):
+    return iph - 1e-10 * (np.exp(V / 0.03) - 1) - V / 700
+
+
+def test_isolated_outlier_is_removed(diode_curve):
+    V, I = diode_curve
+    I = I.copy()
+    clean = pc.analyze(V, I, models="PV-Bezier")
+    I[40] += 0.3 * I.max()                # one spike on the plateau
+    res = pc.analyze(V, I, models="PV-Bezier")
+    assert res.flag() == pc.Flag.OUTLIERS and res.ok
+    np.testing.assert_allclose(np.asarray(res.esp)[:8], np.asarray(clean.esp)[:8], rtol=1e-3)
+    assert res.fits["PV-Bezier"].error < 2 * clean.fits["PV-Bezier"].error
+    raw = pc.analyze(V, I, models="PV-Bezier", spike_filter=False)
+    assert pc.Flag.OUTLIERS in raw.flag()   # detected without the filter too
+    assert raw.fits["PV-Bezier"].error > 5 * res.fits["PV-Bezier"].error
+
+
+def test_noisy_curve_is_an_error(diode_curve):
+    V, I = diode_curve
+    rng = np.random.default_rng(0)
+    I = np.where(rng.random(len(I)) < 0.3, rng.random(len(I)) * I.max(), I)
+    res = pc.analyze(V, I)
+    assert pc.Flag.NOISY_IV in res.flag() and not res.ok
+
+
+def test_stepped_curve_is_flagged():
+    # a shaded substring behind a bypass diode: full current up to the knee of
+    # the unshaded part, then the lower current of the shaded part
+    V = np.linspace(0, 1.2, 120)
+    I = np.maximum(_diode(V), _diode(V - 0.55, iph=0.021))
+    res = pc.analyze(V, I, models="PV-Bezier")
+    assert pc.Flag.IV_STEPS in res.flag()
+    assert res.ok                          # a warning: the ESP are still determined
+    plain = pc.analyze(V, _diode(V))
+    assert pc.Flag.IV_STEPS not in plain.flag()
+
+
+def test_clean_curves_raise_no_quality_flags(measured_curves):
+    res = pc.analyze(measured_curves[:200])
+    quality = pc.Flag.OUTLIERS | pc.Flag.NOISY_IV
+    assert not any(res.flag(i) & quality for i in range(len(res)))
+
+
 # ---------------------------------------------------------------- translation
 def test_iec60891_v3_datasheet_coefficients(gt_data):
     T, G, esp = gt_data

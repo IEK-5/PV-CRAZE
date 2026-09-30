@@ -764,6 +764,11 @@ gt.esp(T=T, G=G)
 Condition arguments broadcast against each other and the ESP rows. The
 `max_points` / `seed_index` options of the fitting routines enable furthest
 point sampling in the G-T plane to limit the number of conditions used.
+The fit finds the coefficients that best predict the measured ESP from one
+reference ESP (the mean of the measured ESP translated to `t_ref`, `g_ref`),
+with the coefficients defined at `t_ref`, `g_ref`. The optimization uses at
+most 128 evenly spaced conditions, the reference ESP all of them. A failed
+fit raises `RuntimeError` (the C routines return NaN).
 The `model` field (`Model.PV_SPLINE`, default, or `Model.PV_BEZIER`) selects
 the interpolation the translation runs through; `fit` stores it in the result
 so `translate` uses the same model. The PV-Bezier curve is translated exactly

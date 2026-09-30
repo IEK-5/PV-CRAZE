@@ -221,6 +221,13 @@ class IEC60891v2(_Translation):
     ) -> "IEC60891v2":
         """Fit the coefficients and the reference ESP to ESP measured at ``T``, ``G``.
 
+        The fit looks for the coefficients that best predict the measured ESP
+        from one reference ESP: for given coefficients the reference ESP is the
+        mean of the measured ESP translated to ``t_ref``, ``g_ref``, and the fit
+        minimizes the distance of the reference, translated back to each
+        measured condition, to the measured curve. The optimization uses at
+        most 128 evenly spaced conditions; the reference ESP uses all.
+
         Parameters
         ----------
         esp:
@@ -232,7 +239,7 @@ class IEC60891v2(_Translation):
         max_points:
             If given, use furthest point sampling in the G-T plane to select at
             most this many conditions for the fit. This keeps the full range
-            of conditions but limits the cost for large datasets.
+            of conditions, but it prefers the extreme conditions.
         seed_index:
             Row the furthest point sampling starts from.
         model:

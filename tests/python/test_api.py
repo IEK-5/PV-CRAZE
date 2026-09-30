@@ -319,7 +319,8 @@ def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version, model)
 
 def test_iec60891_translate_between_conditions(gt_data):
     T, G, esp = gt_data
-    coef = pc.iec60891.fit(esp, T, G, version=2)
+    # v3: v2 is not invertible, translating back to the reference spreads more
+    coef = pc.iec60891.fit(esp, T, G, version=3)
     stc = coef.translate(T=25.0, G=1000.0, esp=esp, T_from=T, G_from=G)
     assert stc.is_batch and len(stc) == len(esp)
     assert np.std(stc.voc) / np.mean(stc.voc) < 0.05
@@ -399,6 +400,20 @@ def test_iec60891_bezier_negative_gsc_mpp():
           + 86.3425 * (-0.00101754 * (f(187.3) * 0.5 - f(959.0) * 17.5) + 1 / f(187.3) - 1 / f(959.0)))
     assert out.vmpp * out.impp == pytest.approx(np.max(V2 * I2), rel=1e-6)
     assert out.vmpp == pytest.approx(V2[np.argmax(V2 * I2)], rel=1e-3)
+
+
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_fit_skips_unusable_curves(gt_data, version):
+    T, G, esp = gt_data
+    bad = esp.copy()
+    bad[3] = np.nan
+    bad[7, 2] = -1.0
+    a = pc.iec60891.fit(esp[[i for i in range(len(esp)) if i not in (3, 7)]],
+                        np.delete(T, [3, 7]), np.delete(G, [3, 7]), version=version)
+    b = pc.iec60891.fit(bad, T, G, version=version)
+    assert a == b and a.esp_ref == b.esp_ref
+    with pytest.raises(RuntimeError):
+        pc.iec60891.fit(np.full((5, 10), np.nan), T[:5], G[:5], version=version)
 
 
 def test_diode_gt_at(gt_data):

@@ -22,6 +22,9 @@ FIELDS = (
 )
 
 Scalar = Union[float, np.floating]
+
+_new = object.__new__
+_setattr = object.__setattr__
 FloatOrArray = Union[float, np.ndarray]
 
 
@@ -102,10 +105,9 @@ class ESP:
 
     @classmethod
     def _wrap_owned(cls, data: np.ndarray) -> "ESP":
-        """Wrap a fresh float64 array nobody else references, without copying."""
-        data.flags.writeable = False
-        obj = cls.__new__(cls)
-        object.__setattr__(obj, "_data", data)
+        """Wrap a fresh, read-only float64 array nobody else references, without copying."""
+        obj = _new(cls)
+        _setattr(obj, "_data", data)
         return obj
 
     # ------------------------------------------------------------------ io

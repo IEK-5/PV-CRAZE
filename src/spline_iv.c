@@ -290,20 +290,20 @@ generic_pars Spline2GenericPars(splinepars S, MODEL_TYPE T)
 
 
 /* return the index of the largest V value below V */
-int binsearch(double V, splinepars par)
+static int binsearch(double V, const splinepars *par)
 {
 	int i, imin, imax;
 	
-	if (par.V[0]>V)
+	if (par->V[0]>V)
 		return -1;
-	if (par.V[par.N-1]<V)
-		return par.N-1;
+	if (par->V[par->N-1]<V)
+		return par->N-1;
 	imin=0;
-	imax=par.N-1;
+	imax=par->N-1;
 	while (imax-imin>1)
 	{
 		i=(imin+imax)/2;
-		if (par.V[i]<V)
+		if (par->V[i]<V)
 			imin=i;
 		else
 			imax=i;
@@ -311,7 +311,7 @@ int binsearch(double V, splinepars par)
 	return imin;	
 }
 
-double Spline_I(double V, double *dI, splinepars par)
+static double Spline_I(double V, double *dI, const splinepars *par)
 {
 	int i;
 	double vmin, vplus, h, t;
@@ -322,22 +322,22 @@ double Spline_I(double V, double *dI, splinepars par)
 	{
 		/* linear extrapolation */
 		if (dI)
-			(*dI)=par.dI[0];
-		return par.I[0]+(V-par.V[0])*par.dI[0];
+			(*dI)=par->dI[0];
+		return par->I[0]+(V-par->V[0])*par->dI[0];
 	}
-	if (i==par.N-1)
+	if (i==par->N-1)
 	{
 		/* linear extrapolation */
 		if (dI)
-			(*dI)=par.dI[par.N-1];
-		return par.I[par.N-1]+(V-par.V[par.N-1])*par.dI[par.N-1];
+			(*dI)=par->dI[par->N-1];
+		return par->I[par->N-1]+(V-par->V[par->N-1])*par->dI[par->N-1];
 	}
-	vmin=par.V[i];
-	vplus=par.V[i+1];
-	imin=par.I[i];
-	iplus=par.I[i+1];
-	mmin=par.dI[i];
-	mplus=par.dI[i+1];
+	vmin=par->V[i];
+	vplus=par->V[i+1];
+	imin=par->I[i];
+	iplus=par->I[i+1];
+	mmin=par->dI[i];
+	mplus=par->dI[i+1];
 	h=vplus-vmin;
 	t=(V-vmin)/h;
 	if (dI)
@@ -351,18 +351,18 @@ point splineIV_i (double t, point *dp, void *pars)
 {
 	point p;
 	double *di=NULL;
-	splinepars par;
+	const splinepars *par;
 	
 	if (dp)
 		di=&(dp->y);
-	par=*((splinepars *)pars);
-	p.x=(2*t-0.5)*par.V[par.index[4]]; // for t 0-1 we cover a bit wider voltage range to be sure
+	par=(const splinepars *)pars;
+	p.x=(2*t-0.5)*par->V[par->index[4]]; // for t 0-1 we cover a bit wider voltage range to be sure
 	p.y=Spline_I(p.x, di, par);
 	if (dp)
 	{
 		// take care of derivatives we have to compute dx/dt and dy/dt
-		dp->x=2*par.V[par.index[4]];
-		dp->y*=2*par.V[par.index[4]];
+		dp->x=2*par->V[par->index[4]];
+		dp->y*=2*par->V[par->index[4]];
 	}
 	return p;
 }
@@ -697,7 +697,7 @@ generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, do
 	int i;
 	double DT, GR;
 	Sp=Generic2SplinePars(P);
-	Sn=Generic2SplinePars(P);
+	Sn=Sp;
 	
 	DT=(T2-T1);
 	GR=(G2/G1);
@@ -1388,7 +1388,7 @@ generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, d
 	curvepars par;
 	int i;
 	Sp=Generic2SplinePars(P);
-	Sn=Generic2SplinePars(P);
+	Sn=Sp;
 	
 	for (i=0;i<Sp.N;i++)
 		IEC_v3(Sp.V[i], Vocstd, Sp.I[i], Sn.dI[i],G1, G2, Gstd,T1, T2, Tstd,alpha,beta,B1,B2,Rs,kappa,Sn.V+i,Sn.I+i,Sn.dI+i);

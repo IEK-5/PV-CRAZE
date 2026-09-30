@@ -42,6 +42,7 @@ def iec60891_v3_translate(
     voc_ref: float, t_ref: float, g_ref: float,
     alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, /,
 ) -> np.ndarray: ...
+# single ESP, scalar conditions; the result is read-only
 def iec60891_v2_translate1(
     esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
     alpha: float, beta: float, a: float, rs: float, kappa: float, /,

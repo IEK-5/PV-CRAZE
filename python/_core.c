@@ -952,7 +952,8 @@ static PyObject *core_iec60891_v3_translate(PyObject *self, PyObject *args)
 }
 
 /* single ESP, scalar conditions: the hot path of e.g. a Kalman filter.
- * iec60891_v{2,3}_translate1(esp (10,), T_from, G_from, T, G, coefficients...) -> (10,) */
+ * iec60891_v{2,3}_translate1(esp (10,), T_from, G_from, T, G, coefficients...) -> (10,)
+ * The result is returned read-only, ready to be wrapped in an ESP. */
 static PyObject *translate1(PyObject *args, int version)
 {
 	PyObject *esp_obj;
@@ -983,7 +984,10 @@ static PyObject *translate1(PyObject *args, int version)
 	if (out==NULL)
 		return PyErr_NoMemory();
 	if ((o=(PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_DOUBLE))!=NULL)
+	{
 		pars_to_row(out, (double *)PyArray_DATA(o));
+		PyArray_CLEARFLAGS(o, NPY_ARRAY_WRITEABLE);
+	}
 	free(out);
 	return (PyObject *)o;
 }

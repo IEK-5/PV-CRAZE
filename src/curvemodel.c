@@ -340,7 +340,7 @@ double Solve_VI(double I, double Isc,  point *dp, void * pars, point (*model)(do
 
 point FindMp(point off, void * pars, point (*model)(double, point *, void *), MODELSET *S)
 {
-	double vmin=0, vmax=1, v, vn=0.5;
+	double vmin=0, vmax=1, v, vn=0.5, dP;
 	point p, dp;
 	int iter=0;
 	// offset voltage and current can be used to determine quasi mpp's
@@ -350,10 +350,14 @@ point FindMp(point off, void * pars, point (*model)(double, point *, void *), MO
 			v=(vmin+vmax)/2;
 		else
 			v=vn;
-		p=model(v,&dp,pars);	
-		vn=v-(dp.x*(p.y-off.y)+dp.y*(p.x-off.x))/(2*dp.x*dp.y); // go to maximum power point of the tangent line	
-		//if (-(p.y-off.y)/(p.x-off.x)<dp.y/dp.x)
-		if (vn>v)
+		p=model(v,&dp,pars);
+		dP=dp.x*(p.y-off.y)+dp.y*(p.x-off.x); // derivative of the power to the curve parameter
+		vn=v-dP/(2*dp.x*dp.y); // go to maximum power point of the tangent line
+		/* bracket the maximum by the sign of dP. For a decreasing curve this is
+		 * the direction of the step above, but where the current increases
+		 * with voltage (e.g. near short circuit with a negative Gsc) the step
+		 * points away from the maximum */
+		if (dP>0)
 			vmin=v;
 		else
 			vmax=v;

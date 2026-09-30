@@ -31,6 +31,7 @@
 #include "curve.h"
 #include "fitmodels.h"
 #include "curvemodel.h"
+#include "spline_iv.h"
 // internal struct
 typedef struct {
 	double V[13];
@@ -733,4 +734,63 @@ generic_pars B3Fit(curvepars par, curve C, double *Efit, MODELSET *S)
 	Sd=Generic2B3Pars(P,S);
 	(*Efit)=B3RMSErr_i(Sd, C,S);
 	return P;
+}
+
+
+/* IEC60891 procedure 2 translation of a PV-Bézier
+ * For a given curve the IEC60891 translation maps every point (V1,I1) with an
+ * affine map (I2 is proportional to I1 and V2 is linear in V1 and I1).
+ * Bézier curves are invariant under affine maps, i.e. mapping the controll
+ * points translates the curve exactly. The PV-spline in contrast is a
+ * function I(V), which is not closed under the shear of the V-axis by the
+ * series resistance term, so there only the knots and slopes are translated. */
+static generic_pars B3SolPars(B3pars *B, MODELSET *S)
+{
+	generic_pars P;
+	curvepars par;
+	par=SolPar(B->V[12], B->I[0], (void *) B, &B3_i, S);
+	if ((B->V[0]>0)&&(B->V[1]>B->V[0]))
+	{
+		/* The translated curve starts at V>0. The solver only searches
+		 * 0<=t<=1, so extrapolate linearly to short circuit here, as B3_i
+		 * does for t<0 */
+		double s=(B->I[1]-B->I[0])/(B->V[1]-B->V[0]);
+		par.Isc=B->I[0]-s*B->V[0];
+		par.Gsc=-s;
+	}
+	P.TYPE=M_PVBEZIER;
+	P.pars[0]=par.Voc;
+	P.pars[1]=par.Isc;
+	P.pars[2]=par.Vmpp;
+	P.pars[3]=par.Impp;
+	P.pars[4]=par.Vqmp1;
+	P.pars[5]=par.Iqmp1;
+	P.pars[6]=par.Vqmp2;
+	P.pars[7]=par.Iqmp2;
+	P.pars[8]=par.Gsc;
+	P.pars[9]=par.Roc;
+	return P;
+}
+
+generic_pars B3IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S)
+{
+	B3pars B;
+	double Voc1;
+	int i;
+	B=Generic2B3Pars(P,S);
+	Voc1=B.V[12];
+	for (i=0;i<13;i++)
+		IEC_v2(B.V[i], B.I[i], Voc1, alpha, beta, a, Rs, kappa, T1, T2, G1, G2, B.V+i, B.I+i);
+	return B3SolPars(&B, S);
+}
+
+generic_pars B3IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
+{
+	B3pars B;
+	double dIdV;
+	int i;
+	B=Generic2B3Pars(P,S);
+	for (i=0;i<13;i++)
+		IEC_v3(B.V[i], Vocstd, B.I[i], 0, G1, G2, Gstd, T1, T2, Tstd, alpha, beta, B1, B2, Rs, kappa, B.V+i, B.I+i, &dIdV);
+	return B3SolPars(&B, S);
 }

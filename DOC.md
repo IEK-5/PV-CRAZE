@@ -128,6 +128,8 @@ Translate ESP using the IEC60891 v2 norm model. Takes as input ESP, input temper
 
 Translate ESP using the IEC60891 v3 norm model. Takes as input ESP, input temperature and irradiance, and output temperature and irradiance. The routine then computes for each input ESP the output ESP.
 
+All four IEC60891 routines take an optional last argument naming the interpolation model used for the translation: "PV-spline" (default) or "PV-Bezier". The IEC60891 map of the points of a curve is affine and a Bézier curve is invariant under affine maps, so a PV-Bezier curve is translated exactly. With the PV-spline only the knots and their slopes are translated, which for curves with a high series resistance occasionally leads to large errors in the translated mpp. Use the same model for fitting and translating.
+
 ## Python Interface
 The Python package is a separate, object based interface; it does not mirror
 the Octave routines below. See the section [Python](#python) at the end of
@@ -263,7 +265,7 @@ You may look at the scripts in the test directory for examples.
           
 ### pvcraze_fit_IEC60891_v2
      [esp_std, alpha, beta, a, Rs, kappa] = pvcraze_fit_IEC60891_v2 
-     (esp, T, G, Tstd, Gstd [, unit,furthest_N])
+     (esp, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])
      pvcraze_fit_IEC60891_v2 is part of the PV-CRAZE package and fits
      IEC60891 translation coefficients and determines standard test
      condition curve parameters to best describe provided temperature
@@ -295,7 +297,7 @@ You may look at the scripts in the test directory for examples.
         
 ### pvcraze_fit_IEC60891_v3
 	 [esp_std, alpha, beta, B1, B2, Rs, kappa] = pvcraze_fit_IEC60891_v3 
-	 (esp, T, G, Tstd, Gstd [,furthest_N])
+	 (esp, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])
 	 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits
 	 IEC60891 translation coefficients and determines standard test
 	 condition curve parameters to best describe provided temperature
@@ -328,7 +330,7 @@ You may look at the scripts in the test directory for examples.
         
 ### pvcraze_translate_IEC60891_v2
      esp = pvcraze_translate_IEC60891_v2 (esp, T1, G1, T2, G2, alpha, 
-     beta, a, Rs, kappa)
+     beta, a, Rs, kappa [,model])
      pvcraze_translate_IEC60891_v2 is part of the PV-CRAZE package and
      translates curve parameters from conditions G1, T1 to G2, T2, using
      procedure 2 from IEC60891 norm version 2 (2009)
@@ -353,7 +355,7 @@ You may look at the scripts in the test directory for examples.
 
 ### pvcraze_translate_IEC60891_v3
      esp = pvcraze_translate_IEC60891_v3 (esp, T1, G1, T2, G2, Vocstd, 
-     Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa)
+     Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa [,model])
      pvcraze_translate_IEC60891_v3 is part of the PV-CRAZE package and
      translates curve parameters from conditions G1, T1 to G2, T2, using
      procedure 2 from IEC60891 norm version 3 (2021)
@@ -753,6 +755,7 @@ coef.esp_ref                                    # ESP at t_ref, g_ref (25 degC, 
 coef.translate(T=60, G=800)                     # reference -> other conditions
 coef.translate(T=25, G=1000, esp=esp, T_from=T, G_from=G)   # any -> any
 iec60891.IEC60891v2(alpha=..., beta=..., a=..., rs=..., kappa=...)  # known coefficients
+iec60891.fit(esp, T=T, G=G, model="PV-Bezier")  # translate through the PV-Bezier
 
 gt = diode_gt.fit(esp, T=T, G=G)                # DiodeGT
 gt.at(T=60, G=800)                              # diode ModelParams at those conditions
@@ -761,6 +764,10 @@ gt.esp(T=T, G=G)
 Condition arguments broadcast against each other and the ESP rows. The
 `max_points` / `seed_index` options of the fitting routines enable furthest
 point sampling in the G-T plane to limit the number of conditions used.
+The `model` field (`Model.PV_SPLINE`, default, or `Model.PV_BEZIER`) selects
+the interpolation the translation runs through; `fit` stores it in the result
+so `translate` uses the same model. The PV-Bezier curve is translated exactly
+(the IEC 60891 map is affine), the PV-spline only at its knots.
 
 ### Migrating from the pvcraze 1.x Python API
 | old | new |

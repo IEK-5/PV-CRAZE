@@ -34,6 +34,8 @@
 #include "curvemodel.h"
 #include "neldermead.h"
 #include "diffevol.h"
+#include "spline_iv.h"
+#include "bezier3_iv.h"
 
 
 // internal struct
@@ -690,12 +692,22 @@ generic_pars PVSplineFit(curvepars par, curve C, double *Efit, MODELSET *S)
 #define IEC_v2_V2(V1,I1,Voc1,I2,alpha,beta,a,Rs,kappa,DT,GR) ((V1)+(Voc1)*((beta)*(DT)+(a)*log((GR)))-(Rs)*((I2)-(I1))-(kappa)*((I2)*(DT)))
 #define IEC_v2_dIdV2(dIdV1,alpha,beta,a,Rs,kappa,DT,GR) (-(dIdV1)*(GR)*((alpha)*(DT)+1)/((dIdV1)*(GR)*(DT)*((alpha)*(DT)+1)*(kappa)-1+(GR)*(Rs)*(alpha)*(dIdV1)*(DT)+((GR)-1)*(Rs)*(dIdV1)))
 
+void IEC_v2(double V1, double I1, double Voc1, double alpha, double beta, double a, double Rs, double kappa,
+            double T1, double T2, double G1, double G2, double *V2o, double *I2o)
+{
+	double DT=(T2-T1), GR=(G2/G1);
+	(*I2o)=IEC_v2_I2(I1,alpha,DT,GR);
+	(*V2o)=IEC_v2_V2(V1,I1,Voc1,(*I2o),alpha,beta,a,Rs,kappa,DT,GR);
+}
+
 generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S)
 {
 	splinepars Sp, Sn;
 	curvepars par;
 	int i;
 	double DT, GR;
+	if (P.TYPE==M_PVBEZIER)
+		return B3IEC60891_v2(P, alpha, beta, a, Rs, kappa, T1, T2, G1, G2, S);
 	Sp=Generic2SplinePars(P);
 	Sn=Sp;
 	
@@ -996,8 +1008,17 @@ typedef struct {
 	double *G, *T;
 	int N;
 	double Tstd, Gstd;
+	MODEL_TYPE M; // interpolation model used for the translation
 	MODELSET *S;
 } errpars;
+
+// RMS distance of the (translated) curve to the key points
+static double IEC_RMSErr(generic_pars P, curve C, MODELSET *S)
+{
+	if (P.TYPE==M_PVBEZIER)
+		return B3RMSErr(P, C, S);
+	return SplineRMSErr(P, C, S);
+}
 
 /* optimization vector x preprocessing macros
  * x[0]: alpha
@@ -1036,7 +1057,7 @@ double FitErr(double x[5], void *args)
 	int i;
 	generic_pars P2;
 	pp=(errpars *) args;
-	P2.TYPE=M_PVSPLINE;
+	P2.TYPE=pp->M;
 	for (i=0;i<pp->N;i++)
 	{
 		double e;
@@ -1051,7 +1072,7 @@ double FitErr(double x[5], void *args)
 		P2.pars[8]=pp->C[i].Gsc;
 		P2.pars[9]=pp->C[i].Roc;
 		P2=IEC60891_v2(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), pp->T[i], pp->Tstd, pp->G[i], pp->Gstd, pp->S); // from stc to actual
-		e=SplineRMSErr(P2, pp->P, pp->S);
+		e=IEC_RMSErr(P2, pp->P, pp->S);
 		if (!isfinite(e))
 			e=1; // 100% error
 		E+=e;
@@ -1061,7 +1082,7 @@ double FitErr(double x[5], void *args)
 
 #define SIMPLSIZE 0.2 // simplex size
 #define MINSIMPLSIZE 1e-4 // simplex size
-void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODELSET *S)
+void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
 	double x[5];
 	double step[5];
@@ -1107,6 +1128,7 @@ void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, doub
 	pp.N=N;
 	pp.Tstd=Tstd;
 	pp.Gstd=Gstd;
+	pp.M=M;
 	pp.S=S;
 	
 	
@@ -1124,7 +1146,7 @@ void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, doub
 }
 
 /* fit the IEC norm, return spline pars at Tstd,Gstd and set alpha, beta, ... etc. */
-generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODELSET *S)
+generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
 	int i;
 	double *arr, Ts, Gs;
@@ -1134,7 +1156,7 @@ generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Ts
 	if((arr=Emalloc(4*N*sizeof(double)))==NULL)
 		return P;
 	
-	P.TYPE=M_PVSPLINE;
+	P.TYPE=M;
 	// compute temporary standard temperatures and irradiances
 	// as the mean temperature and irradiance
 	Ts=0;
@@ -1172,7 +1194,7 @@ generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Ts
 	for (i=0;i<N;i++)
 	{
 		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
+		P2.TYPE=M;
 		P2.pars[0]=C[i].Voc;
 		P2.pars[1]=C[i].Isc;
 		P2.pars[2]=C[i].Vmpp;
@@ -1212,7 +1234,7 @@ generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Ts
 	
 	
 	// optimize solution using a downhill simplex
-	OptimizeIEC_v2(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, a, Rs, kappa, S);
+	OptimizeIEC_v2(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, a, Rs, kappa, M, S);
 	
 	// rebase the std condition from Ts,Gs to Tstd,Gstd
 	P.pars[0]=0;
@@ -1228,7 +1250,7 @@ generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Ts
 	for (i=0;i<N;i++)
 	{
 		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
+		P2.TYPE=M;
 		P2.pars[0]=C[i].Voc;
 		P2.pars[1]=C[i].Isc;
 		P2.pars[2]=C[i].Vmpp;
@@ -1387,6 +1409,8 @@ generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, d
 	splinepars Sp, Sn;
 	curvepars par;
 	int i;
+	if (P.TYPE==M_PVBEZIER)
+		return B3IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, Vocstd, T1, T2, Tstd, G1, G2, Gstd, S);
 	Sp=Generic2SplinePars(P);
 	Sn=Sp;
 	
@@ -1417,7 +1441,7 @@ double FitErr2(double x[6], void *args)
 	pp=(errpars *) args;
 	for (i=0;i<pp->N;i++)
 	{
-		P2.TYPE=M_PVSPLINE;
+		P2.TYPE=pp->M;
 		P2.pars[0]=pp->C[i].Voc;
 		P2.pars[1]=pp->C[i].Isc;
 		P2.pars[2]=pp->C[i].Vmpp;
@@ -1429,7 +1453,7 @@ double FitErr2(double x[6], void *args)
 		P2.pars[8]=pp->C[i].Gsc;
 		P2.pars[9]=pp->C[i].Roc;
 		P2=IEC60891_v3(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), FX5(x[5]), pp->P.P[4].x, pp->T[i], pp->Tstd, pp->Tstd, pp->G[i], pp->Gstd, pp->Gstd, pp->S); // from actual to std
-		e=SplineRMSErr(P2, pp->P, pp->S);
+		e=IEC_RMSErr(P2, pp->P, pp->S);
 		if (!isfinite(e))
 			e=1;
 		E+=e;
@@ -1469,7 +1493,7 @@ double FitErrM(double x[6], void *args)
 	pp=(errpars *) args;
 	for (i=0;i<pp->N;i++)
 	{
-		P2.TYPE=M_PVSPLINE;
+		P2.TYPE=pp->M;
 		P2.pars[0]=pp->C[i].Voc;
 		P2.pars[1]=pp->C[i].Isc;
 		P2.pars[2]=pp->C[i].Vmpp;
@@ -1482,7 +1506,7 @@ double FitErrM(double x[6], void *args)
 		P2.pars[9]=pp->C[i].Roc;
 		P2=IEC60891_v3(P2, FX0(x[-4]), FX1(x[-3]), FX2(x[-2]), FX3(x[-1]), FX4(x[0]), FX5(x[1]), pp->P.P[4].x, pp->T[i], pp->Tstd, pp->Tstd, pp->G[i], pp->Gstd, pp->Gstd, pp->S); // from actual to std
 	
-		E+=SplineRMSErr(P2, pp->P, pp->S);	
+		E+=IEC_RMSErr(P2, pp->P, pp->S);	
 	}
 	//printf("%e %e %e %e %e %e %e\n", x[0], x[1], x[2], x[3], x[4], x[5], E);
 	return E;
@@ -1504,7 +1528,7 @@ double FitErrI(double x[6], void *args)
 	return E;
 }
 
-void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODELSET *S)
+void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
 	double x[6], x0[6];
 	double step[6];
@@ -1560,6 +1584,7 @@ void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, doub
 	pp.N=N;
 	pp.Tstd=Tstd;
 	pp.Gstd=Gstd;
+	pp.M=M;
 	pp.S=S;
 	
 	
@@ -1639,7 +1664,7 @@ void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, doub
 }
 
 
-generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODELSET *S)
+generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
 	int i;
 	double *arr, Ts=0, Gs=0;
@@ -1652,7 +1677,7 @@ generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Ts
 	 
 	if((arr=Emalloc(4*N*sizeof(double)))==NULL)
 		return P;
-	P.TYPE=M_PVSPLINE;
+	P.TYPE=M;
 	
 	// compute temporary std G and T
 	for (i=0;i<N;i++)
@@ -1686,7 +1711,7 @@ generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Ts
 	for (i=0;i<N;i++)
 	{
 		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
+		P2.TYPE=M;
 		P2.pars[0]=C[i].Voc;
 		P2.pars[1]=C[i].Isc;
 		P2.pars[2]=C[i].Vmpp;
@@ -1725,7 +1750,7 @@ generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Ts
 	Cstd.Roc=P.pars[9];
 	
 	// optimize using a downhill simplex
-	OptimizeIEC_v3(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, B1, B2, Rs, kappa, S);
+	OptimizeIEC_v3(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, B1, B2, Rs, kappa, M, S);
 	
 	// rebase the std condition from Ts,Gs to Tstd,Gstd
 	P=IEC60891_v3(P, *alpha, *beta, *B1, *B2, *Rs, *kappa, Cstd.Voc, Ts, Tstd, Ts, Gs, Gstd, Gs, S);

@@ -836,8 +836,16 @@ curve *pv_craze_curvemodel(generic_pars *pars, int N, int M)
  *  2: set N=1 and M=m
  * 		translate one IV to m conditions
  */
+/* check the interpolation model for the IEC60891 translation */
+static int IEC_model_ok(MODEL_TYPE model)
+{
+	if ((model==M_PVSPLINE)||(model==M_PVBEZIER))
+		return 1;
+	fprintf(stderr,"ERROR: IEC60891 translation supports the PV-spline and PV-Bezier models only\n");
+	return 0;
+}
 curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
-                   double alpha, double beta, double a, double Rs, double kappa)
+                   double alpha, double beta, double a, double Rs, double kappa, MODEL_TYPE model)
 {
 	int i, pc=0, nn;
 	curvepars *Cout;
@@ -845,6 +853,8 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Translate");
 		
 	BarScale(LLEN, TICS);
+	if (!IEC_model_ok(model))
+		return NULL;
 	nn=N;
 	if (M>nn)
 		nn=M;
@@ -856,7 +866,7 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 	for (i=0;i<nn;i++)
 	{
 		generic_pars P, O;
-		P.TYPE=M_PVSPLINE;
+		P.TYPE=model;
 		P.pars[0]=pars[i%N].Voc;
 		P.pars[1]=pars[i%N].Isc;
 		P.pars[2]=pars[i%N].Vmpp;
@@ -900,7 +910,7 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 
 
 curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
-                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa)
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, MODEL_TYPE model)
 {
 	int i, pc=0, nn;
 	curvepars *Cout;
@@ -908,6 +918,8 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Translate");
 		
 	BarScale(LLEN, TICS);
+	if (!IEC_model_ok(model))
+		return NULL;
 	nn=N;
 	if (M>nn)
 		nn=M;
@@ -919,7 +931,7 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 	for (i=0;i<nn;i++)
 	{
 		generic_pars P, O;
-		P.TYPE=M_PVSPLINE;
+		P.TYPE=model;
 		P.pars[0]=pars[i%N].Voc;
 		P.pars[1]=pars[i%N].Isc;
 		P.pars[2]=pars[i%N].Vmpp;
@@ -972,7 +984,7 @@ MODELSET FitIECMODSET = {
 };
 
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off)
+                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -983,13 +995,15 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Fit");
 	
+	if (!IEC_model_ok(model))
+		return Out;
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N,off);
 	if (!n)
 		return Out;
 		
-	P=IEC60891Fit_v2(cc, gg, tt, n, Tstd, Gstd, alpha, beta, a, Rs, kappa, &FitIECMODSET);
+	P=IEC60891Fit_v2(cc, gg, tt, n, Tstd, Gstd, alpha, beta, a, Rs, kappa, model, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -1008,7 +1022,7 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 
 
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off)
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1018,13 +1032,15 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
 	
+	if (!IEC_model_ok(model))
+		return Out;
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N, off);
 	if (!n)
 		return Out;
 		
-	P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, &FitIECMODSET);
+	P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];

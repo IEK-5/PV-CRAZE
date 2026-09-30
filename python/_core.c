@@ -903,17 +903,29 @@ static int get_translate_args(translate_args *a, PyObject *esp, PyObject *t1, Py
 
 #define VEC(A) ((double *)PyArray_DATA(A))
 
+/* the interpolation model of the IEC60891 routines */
+static int iec_model_ok(int model)
+{
+	if ((model==M_PVSPLINE)||(model==M_PVBEZIER))
+		return 1;
+	PyErr_SetString(PyExc_ValueError, "IEC 60891 translation supports the PV-spline and PV-Bezier models only");
+	return 0;
+}
+
 static PyObject *core_iec60891_v2_translate(PyObject *self, PyObject *args)
 {
 	PyObject *esp, *t1, *g1, *t2, *g2, *ret;
 	double alpha, beta, a, rs, kappa;
+	int model;
 	translate_args A;
 	curvepars *out;
-	if (!PyArg_ParseTuple(args, "OOOOOddddd", &esp, &t1, &g1, &t2, &g2, &alpha, &beta, &a, &rs, &kappa))
+	if (!PyArg_ParseTuple(args, "OOOOOdddddi", &esp, &t1, &g1, &t2, &g2, &alpha, &beta, &a, &rs, &kappa, &model))
+		return NULL;
+	if (!iec_model_ok(model))
 		return NULL;
 	if (!get_translate_args(&A, esp, t1, g1, t2, g2))
 		return NULL;
-	out=pv_craze_translate_IEC60891_v2(A.esp, VEC(A.g1), VEC(A.t1), A.n, VEC(A.g2), VEC(A.t2), A.n, alpha, beta, a, rs, kappa);
+	out=pv_craze_translate_IEC60891_v2(A.esp, VEC(A.g1), VEC(A.t1), A.n, VEC(A.g2), VEC(A.t2), A.n, alpha, beta, a, rs, kappa, (MODEL_TYPE)model);
 	FLUSH_LIBRARY_OUTPUT();
 	if (out==NULL)
 	{
@@ -930,15 +942,18 @@ static PyObject *core_iec60891_v3_translate(PyObject *self, PyObject *args)
 {
 	PyObject *esp, *t1, *g1, *t2, *g2, *ret;
 	double voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa;
+	int model;
 	translate_args A;
 	curvepars *out;
-	if (!PyArg_ParseTuple(args, "OOOOOddddddddd", &esp, &t1, &g1, &t2, &g2, &voc_ref, &t_ref, &g_ref,
-			&alpha, &beta, &b1, &b2, &rs, &kappa))
+	if (!PyArg_ParseTuple(args, "OOOOOdddddddddi", &esp, &t1, &g1, &t2, &g2, &voc_ref, &t_ref, &g_ref,
+			&alpha, &beta, &b1, &b2, &rs, &kappa, &model))
+		return NULL;
+	if (!iec_model_ok(model))
 		return NULL;
 	if (!get_translate_args(&A, esp, t1, g1, t2, g2))
 		return NULL;
 	out=pv_craze_translate_IEC60891_v3(A.esp, VEC(A.g1), VEC(A.t1), A.n, VEC(A.g2), VEC(A.t2), A.n,
-		voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa);
+		voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa, (MODEL_TYPE)model);
 	FLUSH_LIBRARY_OUTPUT();
 	if (out==NULL)
 	{
@@ -952,7 +967,7 @@ static PyObject *core_iec60891_v3_translate(PyObject *self, PyObject *args)
 }
 
 /* single ESP, scalar conditions: the hot path of e.g. a Kalman filter.
- * iec60891_v{2,3}_translate1(esp (10,), T_from, G_from, T, G, coefficients...) -> (10,)
+ * iec60891_v{2,3}_translate1(esp (10,), T_from, G_from, T, G, coefficients..., model) -> (10,)
  * The result is returned read-only, ready to be wrapped in an ESP. */
 static PyObject *translate1(PyObject *args, int version)
 {
@@ -961,14 +976,16 @@ static PyObject *translate1(PyObject *args, int version)
 	double t1, g1, t2, g2, c[9];
 	curvepars in, *out;
 	npy_intp dims[1]={10};
-	int ok;
+	int ok, model;
 	if (version==3)
-		ok=PyArg_ParseTuple(args, "Oddddddddddddd", &esp_obj, &t1, &g1, &t2, &g2,
-			c, c+1, c+2, c+3, c+4, c+5, c+6, c+7, c+8);
+		ok=PyArg_ParseTuple(args, "Odddddddddddddi", &esp_obj, &t1, &g1, &t2, &g2,
+			c, c+1, c+2, c+3, c+4, c+5, c+6, c+7, c+8, &model);
 	else
-		ok=PyArg_ParseTuple(args, "Oddddddddd", &esp_obj, &t1, &g1, &t2, &g2,
-			c, c+1, c+2, c+3, c+4);
+		ok=PyArg_ParseTuple(args, "Odddddddddi", &esp_obj, &t1, &g1, &t2, &g2,
+			c, c+1, c+2, c+3, c+4, &model);
 	if (!ok)
+		return NULL;
+	if (!iec_model_ok(model))
 		return NULL;
 	if ((e=as_vector(esp_obj, 10, "esp"))==NULL)
 		return NULL;
@@ -976,10 +993,10 @@ static PyObject *translate1(PyObject *args, int version)
 	Py_DECREF(e);
 	if (version==3)
 		out=pv_craze_translate_IEC60891_v3(&in, &g1, &t1, 1, &g2, &t2, 1,
-			c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8]);
+			c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], (MODEL_TYPE)model);
 	else
 		out=pv_craze_translate_IEC60891_v2(&in, &g1, &t1, 1, &g2, &t2, 1,
-			c[0], c[1], c[2], c[3], c[4]);
+			c[0], c[1], c[2], c[3], c[4], (MODEL_TYPE)model);
 	FLUSH_LIBRARY_OUTPUT();
 	if (out==NULL)
 		return PyErr_NoMemory();
@@ -1039,17 +1056,19 @@ static PyObject *core_iec60891_v2_fit(PyObject *self, PyObject *args)
 {
 	PyObject *esp, *t, *g;
 	double t_ref, g_ref, alpha=0, beta=0, a=0, rs=0, kappa=0;
-	int max_points, seed;
+	int max_points, seed, model;
 	fit_args A;
 	curvepars out;
 	double row[10];
 	npy_intp dims[1]={10};
 	PyArrayObject *o;
-	if (!PyArg_ParseTuple(args, "OOOddii", &esp, &t, &g, &t_ref, &g_ref, &max_points, &seed))
+	if (!PyArg_ParseTuple(args, "OOOddiii", &esp, &t, &g, &t_ref, &g_ref, &max_points, &seed, &model))
+		return NULL;
+	if (!iec_model_ok(model))
 		return NULL;
 	if (!get_fit_args(&A, esp, t, g))
 		return NULL;
-	out=pv_craze_fit_IEC60891_v2(A.esp, VEC(A.g), VEC(A.t), A.n, t_ref, g_ref, &alpha, &beta, &a, &rs, &kappa, max_points, seed);
+	out=pv_craze_fit_IEC60891_v2(A.esp, VEC(A.g), VEC(A.t), A.n, t_ref, g_ref, &alpha, &beta, &a, &rs, &kappa, max_points, seed, (MODEL_TYPE)model);
 	FLUSH_LIBRARY_OUTPUT();
 	free_fit_args(&A);
 	if ((o=(PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_DOUBLE))==NULL)
@@ -1063,17 +1082,19 @@ static PyObject *core_iec60891_v3_fit(PyObject *self, PyObject *args)
 {
 	PyObject *esp, *t, *g;
 	double t_ref, g_ref, alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0;
-	int max_points, seed;
+	int max_points, seed, model;
 	fit_args A;
 	curvepars out;
 	double row[10];
 	npy_intp dims[1]={10};
 	PyArrayObject *o;
-	if (!PyArg_ParseTuple(args, "OOOddii", &esp, &t, &g, &t_ref, &g_ref, &max_points, &seed))
+	if (!PyArg_ParseTuple(args, "OOOddiii", &esp, &t, &g, &t_ref, &g_ref, &max_points, &seed, &model))
+		return NULL;
+	if (!iec_model_ok(model))
 		return NULL;
 	if (!get_fit_args(&A, esp, t, g))
 		return NULL;
-	out=pv_craze_fit_IEC60891_v3(A.esp, VEC(A.g), VEC(A.t), A.n, t_ref, g_ref, &alpha, &beta, &b1, &b2, &rs, &kappa, max_points, seed);
+	out=pv_craze_fit_IEC60891_v3(A.esp, VEC(A.g), VEC(A.t), A.n, t_ref, g_ref, &alpha, &beta, &b1, &b2, &rs, &kappa, max_points, seed, (MODEL_TYPE)model);
 	FLUSH_LIBRARY_OUTPUT();
 	free_fit_args(&A);
 	if ((o=(PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_DOUBLE))==NULL)
@@ -1165,17 +1186,17 @@ static PyMethodDef core_methods[]={
 	{"iv", core_iv, METH_VARARGS, "iv(types, pars, V) -> I, V of shape (N, m)"},
 	{"vi", core_vi, METH_VARARGS, "vi(types, pars, I) -> V, I of shape (N, m)"},
 	{"iec60891_v2_translate", core_iec60891_v2_translate, METH_VARARGS,
-		"iec60891_v2_translate(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa) -> esp"},
+		"iec60891_v2_translate(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa, model) -> esp"},
 	{"iec60891_v3_translate", core_iec60891_v3_translate, METH_VARARGS,
-		"iec60891_v3_translate(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa) -> esp"},
+		"iec60891_v3_translate(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa, model) -> esp"},
 	{"iec60891_v2_translate1", core_iec60891_v2_translate1, METH_VARARGS,
-		"iec60891_v2_translate1(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa) -> esp (10,)"},
+		"iec60891_v2_translate1(esp, T_from, G_from, T, G, alpha, beta, a, rs, kappa, model) -> esp (10,)"},
 	{"iec60891_v3_translate1", core_iec60891_v3_translate1, METH_VARARGS,
-		"iec60891_v3_translate1(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa) -> esp (10,)"},
+		"iec60891_v3_translate1(esp, T_from, G_from, T, G, voc_ref, t_ref, g_ref, alpha, beta, b1, b2, rs, kappa, model) -> esp (10,)"},
 	{"iec60891_v2_fit", core_iec60891_v2_fit, METH_VARARGS,
-		"iec60891_v2_fit(esp, T, G, t_ref, g_ref, max_points, seed) -> (esp_ref, alpha, beta, a, rs, kappa)"},
+		"iec60891_v2_fit(esp, T, G, t_ref, g_ref, max_points, seed, model) -> (esp_ref, alpha, beta, a, rs, kappa)"},
 	{"iec60891_v3_fit", core_iec60891_v3_fit, METH_VARARGS,
-		"iec60891_v3_fit(esp, T, G, t_ref, g_ref, max_points, seed) -> (esp_ref, alpha, beta, b1, b2, rs, kappa)"},
+		"iec60891_v3_fit(esp, T, G, t_ref, g_ref, max_points, seed, model) -> (esp_ref, alpha, beta, b1, b2, rs, kappa)"},
 	{"diode_gt_fit", core_diode_gt_fit, METH_VARARGS,
 		"diode_gt_fit(esp, T, G, t_ref, g_ref, max_points, seed) -> (pars, alpha, ea)"},
 	{"diode_gt_translate", core_diode_gt_translate, METH_VARARGS,

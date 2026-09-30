@@ -48,11 +48,20 @@ curvepars 		SplinePars(generic_pars P, MODELSET *S);
 double 			SplineIV(double V, generic_pars P, MODELSET *S);
 double 			SplineVI(double I, generic_pars P, MODELSET *S);
 
-// IEC60891 Procedure 2 Translation of a PV-Spline
+// IEC60891 Procedure 2 Translation of an ESP
+// The interpolation model is selected by P.TYPE: M_PVSPLINE (or M_SPLINE) or M_PVBEZIER
 generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S);
 generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S);
-generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODELSET *S);
-generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODELSET *S);
+// fit the translation coefficients, M is the interpolation model (M_PVSPLINE or M_PVBEZIER)
+generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S);
+generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S);
+// translate a single point (V1, I1) of a curve (v2: Voc1 is the Voc of that curve)
+void IEC_v2(double V1, double I1, double Voc1, double alpha, double beta, double a, double Rs, double kappa,
+            double T1, double T2, double G1, double G2, double *V2o, double *I2o);
+void IEC_v3(double V1, double Vs, double I1, double dIdV1,
+            double G1, double G2, double Gs, double T1, double T2, double Ts,
+            double alpha, double beta, double B1, double B2, double Rs, double kappa,
+            double *V2o, double *I2o, double *dIdV2o);
 
 // test curvepars
 void Convexity(curvepars par, double *convex1, double *convex2, double *convex3, double *convex4);

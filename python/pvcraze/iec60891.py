@@ -18,6 +18,15 @@ from known (e.g. datasheet) coefficients::
 Temperatures are in degrees Celsius, irradiances in W/m2. All condition
 arguments broadcast against each other and against the rows of ``esp``.
 
+The ESP are translated through an interpolated IV curve, selected with the
+``model`` argument: :attr:`Model.PV_SPLINE` (default) or
+:attr:`Model.PV_BEZIER`. The IEC 60891 map of the (V, I) points of a curve is
+affine, and a Bezier curve is invariant under affine maps, so the PV-Bezier
+curve is translated exactly. With the PV-spline only the knots and slopes are
+translated::
+
+    coef = iec60891.IEC60891v3.fit(esp, T=T, G=G, model="pv-bezier")
+
 .. note:: Fitting the translation model to measured data is experimental.
 """
 
@@ -31,10 +40,20 @@ import numpy as np
 from . import _core
 from ._arrays import as_float
 from ._esp import ESP, as_esp
+from ._models import Model
 
 __all__ = ["IEC60891v2", "IEC60891v3", "fit"]
 
 _SCALAR = (int, float, np.integer, np.floating)
+_MODELS = (Model.PV_SPLINE, Model.PV_BEZIER)
+
+
+def _iec_model(model: Union[Model, str]) -> Model:
+    m = Model.lookup(model)
+    if m not in _MODELS:
+        names = ", ".join(x.value for x in _MODELS)
+        raise ValueError(f"IEC 60891 translation supports the models {names}, got {m.value!r}")
+    return m
 
 
 def _broadcast(esp: ESP, **conds: Any) -> Tuple[np.ndarray, dict, bool]:
@@ -80,6 +99,7 @@ class _Translation:
     t_ref: float
     g_ref: float
     esp_ref: Optional[ESP]
+    model: Model
 
     _core_fn: Any = None  # the C translation routine (set by the subclasses)
     _core_fn1: Any = None  # its single-ESP, scalar-condition variant
@@ -87,13 +107,16 @@ class _Translation:
     def _coef_args(self) -> Tuple[float, ...]:  # pragma: no cover - abstract
         raise NotImplementedError
 
-    def _cargs(self) -> Tuple[float, ...]:
-        """The coefficient arguments of the C routine, computed once per object."""
+    def _cargs(self) -> Tuple[Any, ...]:
+        """The coefficient and model arguments of the C routine, computed once per object."""
         args = self.__dict__.get("_cargs_")
         if args is None:
-            args = tuple(float(v) for v in self._coef_args())
+            args = tuple(float(v) for v in self._coef_args()) + (self.model.id,)
             object.__setattr__(self, "_cargs_", args)
         return args
+
+    def _check_model(self) -> None:
+        object.__setattr__(self, "model", _iec_model(self.model))
 
     def _translate_rows(self, rows, c) -> np.ndarray:
         return type(self)._core_fn(rows, c["T_from"], c["G_from"], c["T"], c["G"], *self._cargs())
@@ -159,6 +182,9 @@ class IEC60891v2(_Translation):
         Reference conditions [degC, W/m2] (default 25 degC, 1000 W/m2).
     esp_ref:
         ESP at the reference conditions, if known (set by :meth:`fit`).
+    model:
+        Interpolation model of the translation, :attr:`Model.PV_SPLINE`
+        (default) or :attr:`Model.PV_BEZIER`. A name string is accepted.
     """
 
     alpha: float
@@ -169,6 +195,10 @@ class IEC60891v2(_Translation):
     t_ref: float = 25.0
     g_ref: float = 1000.0
     esp_ref: Optional[ESP] = field(default=None, compare=False)
+    model: Model = Model.PV_SPLINE
+
+    def __post_init__(self) -> None:
+        self._check_model()
 
     _core_fn = staticmethod(_core.iec60891_v2_translate)
     _core_fn1 = staticmethod(_core.iec60891_v2_translate1)
@@ -187,6 +217,7 @@ class IEC60891v2(_Translation):
         g_ref: float = 1000.0,
         max_points: Optional[int] = None,
         seed_index: int = 0,
+        model: Union[Model, str] = Model.PV_SPLINE,
     ) -> "IEC60891v2":
         """Fit the coefficients and the reference ESP to ESP measured at ``T``, ``G``.
 
@@ -204,11 +235,15 @@ class IEC60891v2(_Translation):
             of conditions but limits the cost for large datasets.
         seed_index:
             Row the furthest point sampling starts from.
+        model:
+            Interpolation model used in the fit, stored in the result and used
+            by its :meth:`translate`.
         """
+        m = _iec_model(model)
         rows, t, g, fn, off = _fit_args(esp, T, G, max_points, seed_index)
-        esp_ref, alpha, beta, a, rs, kappa = _core.iec60891_v2_fit(rows, t, g, float(t_ref), float(g_ref), fn, off)
+        esp_ref, alpha, beta, a, rs, kappa = _core.iec60891_v2_fit(rows, t, g, float(t_ref), float(g_ref), fn, off, m.id)
         _check_fit(esp_ref)
-        return cls(alpha, beta, a, rs, kappa, float(t_ref), float(g_ref), ESP._wrap(esp_ref))
+        return cls(alpha, beta, a, rs, kappa, float(t_ref), float(g_ref), ESP._wrap(esp_ref), m)
 
 
 @dataclass(frozen=True)
@@ -234,6 +269,8 @@ class IEC60891v3(_Translation):
         ``esp_ref`` when that is given.
     esp_ref:
         ESP at the reference conditions, if known (set by :meth:`fit`).
+    model:
+        Interpolation model of the translation, as :attr:`IEC60891v2.model`.
     """
 
     alpha: float
@@ -246,8 +283,10 @@ class IEC60891v3(_Translation):
     g_ref: float = 1000.0
     voc_ref: Optional[float] = None
     esp_ref: Optional[ESP] = field(default=None, compare=False)
+    model: Model = Model.PV_SPLINE
 
     def __post_init__(self) -> None:
+        self._check_model()
         if self.esp_ref is not None:
             if self.esp_ref.is_batch:
                 raise ValueError("esp_ref must be a single ESP")
@@ -274,12 +313,14 @@ class IEC60891v3(_Translation):
         g_ref: float = 1000.0,
         max_points: Optional[int] = None,
         seed_index: int = 0,
+        model: Union[Model, str] = Model.PV_SPLINE,
     ) -> "IEC60891v3":
         """Fit the coefficients and the reference ESP. Arguments as :meth:`IEC60891v2.fit`."""
+        m = _iec_model(model)
         rows, t, g, fn, off = _fit_args(esp, T, G, max_points, seed_index)
-        esp_ref, alpha, beta, b1, b2, rs, kappa = _core.iec60891_v3_fit(rows, t, g, float(t_ref), float(g_ref), fn, off)
+        esp_ref, alpha, beta, b1, b2, rs, kappa = _core.iec60891_v3_fit(rows, t, g, float(t_ref), float(g_ref), fn, off, m.id)
         _check_fit(esp_ref)
-        return cls(alpha, beta, b1, b2, rs, kappa, float(t_ref), float(g_ref), esp_ref=ESP._wrap(esp_ref))
+        return cls(alpha, beta, b1, b2, rs, kappa, float(t_ref), float(g_ref), esp_ref=ESP._wrap(esp_ref), model=m)
 
 
 def fit(
@@ -292,9 +333,10 @@ def fit(
     g_ref: float = 1000.0,
     max_points: Optional[int] = None,
     seed_index: int = 0,
+    model: Union[Model, str] = Model.PV_SPLINE,
 ) -> Union[IEC60891v2, IEC60891v3]:
     """Fit IEC 60891 ``version`` 2 or 3 (default). See :meth:`IEC60891v2.fit`."""
     cls = {2: IEC60891v2, 3: IEC60891v3}.get(version)
     if cls is None:
         raise ValueError(f"version must be 2 or 3, got {version!r}")
-    return cls.fit(esp, T, G, t_ref=t_ref, g_ref=g_ref, max_points=max_points, seed_index=seed_index)
+    return cls.fit(esp, T, G, t_ref=t_ref, g_ref=g_ref, max_points=max_points, seed_index=seed_index, model=model)

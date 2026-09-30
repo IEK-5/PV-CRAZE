@@ -305,10 +305,11 @@ def test_iec60891_v3_datasheet_coefficients(gt_data):
         pc.iec60891.IEC60891v3(alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0)
 
 
+@pytest.mark.parametrize("model", ["PV-spline", "PV-Bezier"])
 @pytest.mark.parametrize("version", [2, 3])
-def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version):
+def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version, model):
     T, G, esp = gt_data
-    coef = pc.iec60891.fit(esp, T, G, version=version)
+    coef = pc.iec60891.fit(esp, T, G, version=version, model=model)
     fast = coef.translate(T=40.0, G=700.0, esp=esp[5], T_from=float(T[5]), G_from=float(G[5]))
     general = coef.translate(T=[40.0], G=[700.0], esp=esp[5:6], T_from=[T[5]], G_from=[G[5]])
     assert not fast.is_batch and general.is_batch
@@ -326,6 +327,78 @@ def test_iec60891_translate_between_conditions(gt_data):
         pc.iec60891.fit(esp, T, G, version=4)
     with pytest.raises(ValueError):
         coef.translate(T=[1.0, 2.0, 3.0], G=1000.0, esp=esp[:2], T_from=25.0, G_from=1000.0)
+
+
+def test_iec60891_model_option(gt_data):
+    T, G, esp = gt_data
+    coef = pc.iec60891.fit(esp, T, G, version=2, max_points=10, model="pv-bezier")
+    assert coef.model is pc.Model.PV_BEZIER
+    assert pc.iec60891.fit(esp, T, G, version=2, max_points=10).model is pc.Model.PV_SPLINE
+    other = pc.iec60891.IEC60891v2(coef.alpha, coef.beta, coef.a, coef.rs, coef.kappa, esp_ref=coef.esp_ref, model="PV_SPLINE")
+    assert other.model is pc.Model.PV_SPLINE and other != coef
+    a = coef.translate(T=50.0, G=500.0)
+    b = other.translate(T=50.0, G=500.0)
+    assert a.voc == pytest.approx(b.voc) and a.impp != b.impp
+    with pytest.raises(ValueError, match="PV-Bezier"):
+        pc.iec60891.IEC60891v2(0, 0, 0, 0, 0, model="Diode")
+    with pytest.raises(ValueError):
+        pc.iec60891.fit(esp, T, G, model="KH")
+
+
+@pytest.mark.parametrize("t2, g2", [(55.0, 300.0), (10.0, 1200.0)])
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_bezier_translation_is_exact(gt_data, version, t2, g2):
+    # The IEC 60891 map of the curve points is affine and a Bezier curve is
+    # invariant under affine maps: the translated ESP must describe the
+    # point-wise translated PV-Bezier curve.
+    T, G, esp = gt_data
+    ref = pc.ESP.from_array(esp[len(esp) // 2])
+    alpha, beta, b1, rs, kappa = 5e-4, -3.5e-3, 0.06, 0.8, 0.004
+    if version == 2:
+        coef = pc.iec60891.IEC60891v2(alpha, beta, b1, rs, kappa, esp_ref=ref, model="PV-Bezier")
+    else:
+        coef = pc.iec60891.IEC60891v3(alpha, beta, b1, 0.0, rs, kappa, esp_ref=ref, model="PV-Bezier")
+    out = coef.translate(T=t2, G=g2)
+    c = pc.ModelParams(pc.Model.PV_BEZIER, np.asarray(ref)).curve(20000)
+    V, I = c[:, 0], c[:, 1]
+    dt, gr = t2 - 25.0, g2 / 1000.0
+    if version == 2:
+        I2 = I * (1 + alpha * dt) * gr
+        V2 = V + ref.voc * (beta * dt + b1 * np.log(gr)) - rs * (I2 - I) - kappa * I2 * dt
+    else:
+        f2 = b1 * np.log(1 / gr) + 1
+        I2 = I * gr * (1 + alpha * dt)
+        V2 = V - rs * (I2 - I) - kappa * I2 * dt + ref.voc * (beta * f2 * dt + 1 / f2 - 1)
+    assert out.voc == pytest.approx(np.interp(0.0, -I2, V2), rel=1e-6)
+    if V2[0] > 0:  # starts right of short circuit: linear extrapolation
+        isc = I2[0] - V2[0] * (I2[1] - I2[0]) / (V2[1] - V2[0])
+    else:
+        isc = np.interp(0.0, V2, I2)
+    assert out.isc == pytest.approx(isc, rel=1e-6)
+    assert out.vmpp * out.impp == pytest.approx(np.max(V2 * I2), rel=1e-6)
+
+
+def test_iec60891_bezier_negative_gsc_mpp():
+    # A perovskite module ESP with a slightly negative Gsc (the current rises
+    # with voltage near short circuit), translated to low irradiance with a
+    # large series resistance. The mpp search used to get stuck at the start of
+    # the translated curve (Vmpp ~ 3 V).
+    esp = pc.ESP.from_array([84.1345, 1.74376, 63.0823, 1.54458, 46.6489, 1.70286,
+                             75.3669, 0.95064, -0.000322595, 7.2531])
+    coef = pc.iec60891.IEC60891v3(-0.00134593, -0.00101754, 0.0315336, 0.00163605, 6.47686,
+                                  -0.0932635, voc_ref=86.3425, model="PV-Bezier")
+    out = coef.translate(T=25.5, G=187.3, esp=esp, T_from=42.5, G_from=959.0)
+    c = pc.ModelParams(pc.Model.PV_BEZIER, np.asarray(esp)).curve(20000)
+    V, I = c[:, 0], c[:, 1]
+    k = (187.3 / 959.0) * (1 - 0.00134593 * 0.5) / (1 - 0.00134593 * 17.5)
+    I2 = I * k
+    ln = lambda g: np.log(1000.0 / g)
+    f = lambda g: (0.00163605 * ln(g) + 0.0315336) * ln(g) + 1
+    rs1 = 6.47686 - 0.0932635 * 17.5
+    V2 = (V - rs1 * (I2 - I) + 0.0932635 * I2 * (25.5 - 42.5)
+          + 86.3425 * (-0.00101754 * (f(187.3) * 0.5 - f(959.0) * 17.5) + 1 / f(187.3) - 1 / f(959.0)))
+    assert out.vmpp * out.impp == pytest.approx(np.max(V2 * I2), rel=1e-6)
+    assert out.vmpp == pytest.approx(V2[np.argmax(V2 * I2)], rel=1e-3)
 
 
 def test_diode_gt_at(gt_data):

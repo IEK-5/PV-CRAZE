@@ -1338,8 +1338,27 @@ Output:\n\
 	
 }
 
+// optional trailing model name argument of the IEC60891 routines
+// (PV-spline or PV-Bezier), it is removed from nargin
+static int IEC_model_arg(const octave_value_list &args, int *nargin, MODEL_TYPE *M)
+{
+	*M=M_PVSPLINE;
+	if ((*nargin>0)&&args(*nargin-1).is_string())
+	{
+		std::string mname=args(*nargin-1).string_value();
+		(*nargin)--;
+		*M=pv_craze_lookupmodel((char *)mname.c_str());
+		if ((*M!=M_PVSPLINE)&&(*M!=M_PVBEZIER))
+		{
+			fprintf(stderr, "Error: IEC60891 translation supports the PV-spline and PV-Bezier models only\n");
+			return 0;
+		}
+	}
+	return 1;
+}
+
 DEFUN_DLD (pvcraze_fit_IEC60891_v2, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, a, Rs, kappa] =} pvcraze_fit_IEC60891_v2 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]])\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, a, Rs, kappa] =} pvcraze_fit_IEC60891_v2 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])\n\
 pvcraze_fit_IEC60891_v2 is part of the PV-CRAZE package and fits IEC60891 translation\n\
 coefficients and determines standard test condition curve parameters to best describe \n\
 provided temperature and irradiance dependent curve parameters. Uses the IEC60891 version 2 (2009)\n\n\
@@ -1352,6 +1371,7 @@ Input:\n\
 @item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
 @item @var{furthest_N}: Number of samples to select using furthest sampling\n\
 @item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1375,6 +1395,9 @@ Output:\n\
 	int N, Nr,Nc;
 	int FN=0,off=0;
 	int i;
+	MODEL_TYPE model;
+	if (!IEC_model_arg(args, &nargin, &model))
+		return octave_value_list ();
   	if ((nargin < 5)||(nargin > 7))
 	{
     	print_usage ();
@@ -1453,7 +1476,7 @@ Output:\n\
 		TT[i]=T(i,0);	
 		GG[i]=G(i,0);			
 	}
-	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa,FN,off);
+	Cout=pv_craze_fit_IEC60891_v2(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &a, &Rs, &kappa,FN,off,model);
 	
 	free(GG);
 	free(TT);
@@ -1489,7 +1512,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_fit_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]])\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])\n\
 pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
 coefficients and determines standard test condition curve parameters to best describe \n\
 provided temperature and irradiance dependent curve parameters Uses the IEC60891 version 3 (2021)\n\n\
@@ -1502,6 +1525,7 @@ Input:\n\
 @item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
 @item @var{furthest_N}: Number of samples to select using furthest sampling\n\
 @item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1526,6 +1550,9 @@ Output:\n\
 	int N, Nr,Nc;
 	int FN=0, off=0;
 	int i;
+	MODEL_TYPE model;
+	if (!IEC_model_arg(args, &nargin, &model))
+		return octave_value_list ();
   	if ((nargin < 5)||(nargin > 7))
 	{
     	print_usage ();
@@ -1606,7 +1633,7 @@ Output:\n\
 	
 	}
 	
-	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN, off);
+	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN, off, model);
 	
 	free(GG);
 	free(TT);
@@ -1644,7 +1671,7 @@ Output:\n\
 
 
 DEFUN_DLD (pvcraze_translate_IEC60891_v2, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v2 (@var{esp}, T1, G1, T2, G2, alpha, beta, a, Rs, kappa)\n\
+@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v2 (@var{esp}, T1, G1, T2, G2, alpha, beta, a, Rs, kappa [,model])\n\
 pvcraze_translate_IEC60891_v2 is part of the PV-CRAZE package and translates curve parameters from \n\
 conditions G1, T1 to G2, T2, using procedure 2 from IEC60891 norm version 2 (2009)\n\n\
 Input:\n\
@@ -1659,6 +1686,7 @@ Input:\n\
 @item @var{a}:     IEC60891 a\n\
 @item @var{Rs}:    IEC60891 Rs\n\
 @item @var{kappa}: IEC60891 kappa\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1675,6 +1703,9 @@ Output:\n\
 	double alpha, beta, a, Rs, kappa;
 	int N, Nr,Nc, M, Mr, Mc;
 	int i;
+	MODEL_TYPE model;
+	if (!IEC_model_arg(args, &nargin, &model))
+		return octave_value_list ();
   	if (nargin != 10)
 	{
     	print_usage ();
@@ -1791,7 +1822,7 @@ Output:\n\
 		TT2[i]=T2(i,0);	
 		GG2[i]=G2(i,0);		
 	}
-	Cout=pv_craze_translate_IEC60891_v2(Cin, GG1,TT1, N, GG2, TT2, M, alpha, beta, a, Rs, kappa);
+	Cout=pv_craze_translate_IEC60891_v2(Cin, GG1,TT1, N, GG2, TT2, M, alpha, beta, a, Rs, kappa, model);
 	free(GG1);
 	free(GG2);
 	free(TT1);
@@ -1828,7 +1859,7 @@ Output:\n\
 }
 
 DEFUN_DLD (pvcraze_translate_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v3 (@var{esp}, T1, G1, T2, G2, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa)\n\
+@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v3 (@var{esp}, T1, G1, T2, G2, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa [,model])\n\
 pvcraze_translate_IEC60891_v3 is part of the PV-CRAZE package and translates curve parameters from \n\
 conditions G1, T1 to G2, T2, using procedure 2 from IEC60891 norm version 3 (2021)\n\n\
 Input:\n\
@@ -1847,6 +1878,7 @@ Input:\n\
 @item @var{B2}:     IEC60891 B2\n\
 @item @var{Rs}:     IEC60891 Rs\n\
 @item @var{kappa}:  IEC60891 kappa\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
@@ -1863,6 +1895,9 @@ Output:\n\
 	double alpha, beta, B1, B2, Rs, kappa, Vocstd, Gstd, Tstd;
 	int N, Nr,Nc, M, Mr, Mc;
 	int i;
+	MODEL_TYPE model;
+	if (!IEC_model_arg(args, &nargin, &model))
+		return octave_value_list ();
   	if (nargin != 14)
 	{
     	print_usage ();
@@ -1984,7 +2019,7 @@ Output:\n\
 		TT2[i]=T2(i,0);	
 		GG2[i]=G2(i,0);		
 	}
-	Cout=pv_craze_translate_IEC60891_v3(Cin, GG1,TT1, N, GG2, TT2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa);
+	Cout=pv_craze_translate_IEC60891_v3(Cin, GG1,TT1, N, GG2, TT2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model);
 	free(GG1);
 	free(GG2);
 	free(TT1);

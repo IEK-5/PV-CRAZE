@@ -35,28 +35,28 @@ def iv(types: np.ndarray, pars: np.ndarray, V: np.ndarray, /) -> np.ndarray: ...
 def vi(types: np.ndarray, pars: np.ndarray, I: np.ndarray, /) -> np.ndarray: ...
 def iec60891_v2_translate(
     esp: np.ndarray, T_from: np.ndarray, G_from: np.ndarray, T: np.ndarray, G: np.ndarray,
-    alpha: float, beta: float, a: float, rs: float, kappa: float, /,
+    alpha: float, beta: float, a: float, rs: float, kappa: float, model: int, /,
 ) -> np.ndarray: ...
 def iec60891_v3_translate(
     esp: np.ndarray, T_from: np.ndarray, G_from: np.ndarray, T: np.ndarray, G: np.ndarray,
     voc_ref: float, t_ref: float, g_ref: float,
-    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, /,
+    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, model: int, /,
 ) -> np.ndarray: ...
 # single ESP, scalar conditions; the result is read-only
 def iec60891_v2_translate1(
     esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
-    alpha: float, beta: float, a: float, rs: float, kappa: float, /,
+    alpha: float, beta: float, a: float, rs: float, kappa: float, model: int, /,
 ) -> np.ndarray: ...
 def iec60891_v3_translate1(
     esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
     voc_ref: float, t_ref: float, g_ref: float,
-    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, /,
+    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, model: int, /,
 ) -> np.ndarray: ...
 def iec60891_v2_fit(
-    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, /
+    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, model: int, /
 ) -> Tuple[np.ndarray, float, float, float, float, float]: ...
 def iec60891_v3_fit(
-    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, /
+    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, model: int, /
 ) -> Tuple[np.ndarray, float, float, float, float, float, float]: ...
 def diode_gt_fit(
     esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, /

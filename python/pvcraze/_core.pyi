@@ -40,7 +40,7 @@ def iec60891_v2_translate(
 def iec60891_v3_translate(
     esp: np.ndarray, T_from: np.ndarray, G_from: np.ndarray, T: np.ndarray, G: np.ndarray,
     voc_ref: float, t_ref: float, g_ref: float,
-    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, model: int, /,
+    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, rho: float, model: int, /,
 ) -> np.ndarray: ...
 # single ESP, scalar conditions; the result is read-only
 def iec60891_v2_translate1(
@@ -50,14 +50,16 @@ def iec60891_v2_translate1(
 def iec60891_v3_translate1(
     esp: np.ndarray, T_from: float, G_from: float, T: float, G: float,
     voc_ref: float, t_ref: float, g_ref: float,
-    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, model: int, /,
+    alpha: float, beta: float, b1: float, b2: float, rs: float, kappa: float, rho: float, model: int, /,
 ) -> np.ndarray: ...
 def iec60891_v2_fit(
     esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, model: int, /
 ) -> Tuple[np.ndarray, float, float, float, float, float]: ...
+# fit_rho: fit the RsG-modified v3, otherwise rho=0 (IEC 60891 v3)
 def iec60891_v3_fit(
-    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, model: int, /
-) -> Tuple[np.ndarray, float, float, float, float, float, float]: ...
+    esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, model: int,
+    fit_rho: bool, /
+) -> Tuple[np.ndarray, float, float, float, float, float, float, float]: ...
 def diode_gt_fit(
     esp: np.ndarray, T: np.ndarray, G: np.ndarray, t_ref: float, g_ref: float, max_points: int, seed: int, /
 ) -> Tuple[np.ndarray, float, float]: ...

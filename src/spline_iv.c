@@ -757,6 +757,13 @@ generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, do
 * 
 * 
 * A lot more complicated than before but at least the round trip consistency is now given
+*
+* RsG-modified v3 (not part of the norm): an irradiance dependent series resistance
+* Rs(G,T) = Rs + κ(T - Tstd) + ρ ln(G/Gstd), Rs1=Rs(G1,T1), Rs2=Rs(G2,T2)
+* The norm's -Rs1 (I2 - I1) - κ I2 (T2 - T1) equals -Rs2 I2 + Rs1 I1, so with Rs(G,T)
+* V2 = V1 - Rs1 (I2 - I1) - κ I2 (T2 - T1) - ρ I2 ln(G2/G1) + Voc,std (...)
+* which keeps the round trip consistency, ρ=0 is the norm.
+* With c = I2/I1: dI/dV2 = c dI/dV1 / (1 + (Rs1 - c Rs2) dI/dV1)
 * 
 * 
 * 
@@ -776,11 +783,11 @@ dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts^2+(2*G1*T1-2*G2*T2)*Ts+G2*T
 void IEC_v3(double V1, double Vs, double I1, double dIdV1,
             double G1, double G2, double Gs, 
             double T1, double T2, double Ts,
-            double alpha, double beta, double B1, double B2, double Rs, double kappa,
+            double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho,
             double *V2o, double *I2o, double *dIdV2o)
 {
-	double I2,V2,dIdV2;
-	double Rs1, l, FG1, FG2;
+	double I2,V2,dIdV2,c;
+	double Rs1, Rs2, l, FG1, FG2;
 	
 	if ((fabs((G1-G2)/Gs)<1e-9)&&(fabs((T1-T2)/Ts)<1e-9))
 	{
@@ -803,24 +810,37 @@ void IEC_v3(double V1, double Vs, double I1, double dIdV1,
 	V2=V1-Rs1*(I2-I1)-kappa*I2*(T2-T1);
 	V2+=Vs*(beta*(FG2*(T2-Ts)-FG1*(T1-Ts))+1/FG2-1/FG1);
 	
-	dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts*Ts+(2*G1*T1-2*G2*T2)*Ts+G2*T2*T2-G1*T1*T1)*alpha+(G1-G2)*Ts+G2*T2-G1*T1)*dIdV1*kappa+(((G1-G2)*Rs*Ts+G2*Rs*T2-G1*Rs*T1)*alpha+(G2-G1)*Rs)*dIdV1+(G1*Ts-G1*T1)*alpha-G1);
+	if (rho==0)
+		dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts*Ts+(2*G1*T1-2*G2*T2)*Ts+G2*T2*T2-G1*T1*T1)*alpha+(G1-G2)*Ts+G2*T2-G1*T1)*dIdV1*kappa+(((G1-G2)*Rs*Ts+G2*Rs*T2-G1*Rs*T1)*alpha+(G2-G1)*Rs)*dIdV1+(G1*Ts-G1*T1)*alpha-G1);
+	else
+	{
+		/* RsG-modified v3, the norm terms above stay as they are (bit identical
+		 * results for rho=0), the rho terms are added:
+		 * Rs1 = Rs(G1,T1), V2 -= rho I2 ln(G2/G1) */
+		V2-=rho*(log(G1/Gs)*(I2-I1)+I2*log(G2/G1));
+		Rs1+=rho*log(G1/Gs);
+		Rs2=Rs1+kappa*(T2-T1)+rho*log(G2/G1);
+		// dI2 = c dI1, dV2 = dV1 + (Rs1 - c Rs2) dI1
+		c=(G2/G1)*(1+alpha*(T2-Ts))/(1+alpha*(T1-Ts));
+		dIdV2=c*dIdV1/(1+(Rs1-c*Rs2)*dIdV1);
+	}
 	(*I2o)=I2;
 	(*V2o)=V2;
 	(*dIdV2o)=dIdV2;
 }
 
-generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
+generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
 {
 	splinepars Sp, Sn;
 	curvepars par;
 	int i;
 	if (P.TYPE==M_PVBEZIER)
-		return B3IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, Vocstd, T1, T2, Tstd, G1, G2, Gstd, S);
+		return B3IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, rho, Vocstd, T1, T2, Tstd, G1, G2, Gstd, S);
 	Sp=Generic2SplinePars(P);
 	Sn=Sp;
 	
 	for (i=0;i<Sp.N;i++)
-		IEC_v3(Sp.V[i], Vocstd, Sp.I[i], Sn.dI[i],G1, G2, Gstd,T1, T2, Tstd,alpha,beta,B1,B2,Rs,kappa,Sn.V+i,Sn.I+i,Sn.dI+i);
+		IEC_v3(Sp.V[i], Vocstd, Sp.I[i], Sn.dI[i],G1, G2, Gstd,T1, T2, Tstd,alpha,beta,B1,B2,Rs,kappa,rho,Sn.V+i,Sn.I+i,Sn.dI+i);
 	
 	par=SolPar(Sn.V[Sn.index[4]], Sn.I[Sn.index[0]], (void *) &Sn, &splineIV_i, S);
 	
@@ -860,8 +880,13 @@ generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, d
  * all curves.
  *
  * The coefficients are kept in the v3 layout
- *   c[0] alpha, c[1] beta, c[2] a (v2) or B1 (v3), c[3] B2 (v3), c[4] Rs, c[5] kappa
+ *   c[0] alpha, c[1] beta, c[2] a (v2) or B1 (v3), c[3] B2 (v3), c[4] Rs, c[5] kappa,
+ *   c[6] rho (RsG-modified v3, version 4: Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd))
+ * Version 4 with the PV-spline starts the simplex from the v3 optimum.
+ * Version 4 is not part of the norm, internally it is v3 with a fitted rho.
  * ***********************************************************************/
+
+#define IEC_NC 7 // size of the coefficient layout
 
 extern void dgelsd_( int* m, int* n, int* nrhs, double* a, int* lda,
                 double* b, int* ldb, double* s, double* rcond, int* rank,
@@ -902,7 +927,7 @@ static int LSQ(double *A, double *b, int n, int m, double *x)
  *   Vmpp_i + Voc_i (beta (Tstd-T_i) + a ln(Gstd/G_i)) - Rs (Imppstd-Impp_i)
  *          - kappa Imppstd (Tstd-T_i) = Vmppstd
  * with Imppstd the mean Impp translated with alpha. Returns 1 on failure. */
-static int IECStart(const curvepars *C, const double *G, const double *T, int N, double Tstd, double Gstd, double c[6])
+static int IECStart(const curvepars *C, const double *G, const double *T, int N, double Tstd, double Gstd, double c[IEC_NC])
 {
 	double *A, *b, x[3], Imppstd=0;
 	int i, err=1;
@@ -945,8 +970,9 @@ static int IECStart(const curvepars *C, const double *G, const double *T, int N,
 	c[3]=0;
 	c[4]=fabs(x[0]);
 	c[5]=x[1];
+	c[6]=0;
 	err=0;
-	for (i=0;i<6;i++)
+	for (i=0;i<IEC_NC;i++)
 		err|=!isfinite(c[i]);
 IECSTARTFINISH:
 	free(A);
@@ -955,7 +981,7 @@ IECSTARTFINISH:
 }
 
 typedef struct {
-	int version;           // IEC 60891 version, 2 or 3
+	int version;           // IEC 60891 version, 2 or 3 (4: RsG-modified v3)
 	int nc;                // number of fitted coefficients
 	const int *idx;        // their positions in the v3 layout
 	const curvepars *C;    // the ESP to fit
@@ -964,16 +990,16 @@ typedef struct {
 	double Tstd, Gstd;     // reference conditions
 	MODEL_TYPE M;          // interpolation model
 	MODELSET *S;
-	double c0[6], scale[6];// coefficients c = c0 + scale y
+	double c0[IEC_NC], scale[IEC_NC];// coefficients c = c0 + scale y
 	generic_pars *tr;      // work space: the translated ESP
 	generic_pars ref;      // mean translated ESP
 	curve *K;              // the 5 key points of each measured ESP
 } IECFit;
 
-static void IECCoef(const IECFit *F, const double *y, double c[6])
+static void IECCoef(const IECFit *F, const double *y, double c[IEC_NC])
 {
 	int k;
-	for (k=0;k<6;k++)
+	for (k=0;k<IEC_NC;k++)
 		c[k]=F->c0[k];
 	for (k=0;k<F->nc;k++)
 		c[F->idx[k]]+=F->scale[F->idx[k]]*y[k];
@@ -983,7 +1009,7 @@ static void IECCoef(const IECFit *F, const double *y, double c[6])
 /* v3: the Voc at the reference conditions equals the mean translated Voc.
  * At I=0 the translation gives Voc_std,i = Voc_i + Vocstd X_i, so
  * Vocstd = <Voc_i>/(1-<X_i>) */
-static double IECVocstd(const IECFit *F, const double c[6])
+static double IECVocstd(const IECFit *F, const double c[IEC_NC])
 {
 	double l, f, X=0, V=0;
 	int i;
@@ -1012,12 +1038,12 @@ static int IECFinite(const generic_pars *P)
 
 /* translate all ESP to the reference conditions and set F->ref to their
  * mean. Returns the number of finite translated ESP. */
-static int IECTranslateAll(IECFit *F, const double c[6])
+static int IECTranslateAll(IECFit *F, const double c[IEC_NC])
 {
 	generic_pars P;
 	double Vocstd=0;
 	int i, k, n=0;
-	if (F->version==3)
+	if (F->version!=2)
 		Vocstd=IECVocstd(F, c);
 	for (k=0;k<10;k++)
 		F->ref.pars[k]=0;
@@ -1038,7 +1064,7 @@ static int IECTranslateAll(IECFit *F, const double c[6])
 		if (F->version==2)
 			F->tr[i]=IEC60891_v2(P, c[0], c[1], c[2], c[4], c[5], F->T[i], F->Tstd, F->G[i], F->Gstd, F->S);
 		else
-			F->tr[i]=IEC60891_v3(P, c[0], c[1], c[2], c[3], c[4], c[5], Vocstd, F->T[i], F->Tstd, F->Tstd, F->G[i], F->Gstd, F->Gstd, F->S);
+			F->tr[i]=IEC60891_v3(P, c[0], c[1], c[2], c[3], c[4], c[5], c[6], Vocstd, F->T[i], F->Tstd, F->Tstd, F->G[i], F->Gstd, F->Gstd, F->S);
 		if (IECFinite(F->tr+i))
 		{
 			for (k=0;k<10;k++)
@@ -1066,7 +1092,7 @@ static double IECErr(double y[], void *args)
 {
 	IECFit *F=(IECFit *)args;
 	generic_pars Q;
-	double c[6], e, E=0;
+	double c[IEC_NC], e, E=0;
 	int i;
 	IECCoef(F, y, c);
 	if (!IECTranslateAll(F, c))
@@ -1076,7 +1102,7 @@ static double IECErr(double y[], void *args)
 		if (F->version==2)
 			Q=IEC60891_v2(F->ref, c[0], c[1], c[2], c[4], c[5], F->Tstd, F->T[i], F->Gstd, F->G[i], F->S);
 		else
-			Q=IEC60891_v3(F->ref, c[0], c[1], c[2], c[3], c[4], c[5], F->ref.pars[0], F->Tstd, F->T[i], F->Tstd, F->Gstd, F->G[i], F->Gstd, F->S);
+			Q=IEC60891_v3(F->ref, c[0], c[1], c[2], c[3], c[4], c[5], c[6], F->ref.pars[0], F->Tstd, F->T[i], F->Tstd, F->Gstd, F->G[i], F->Gstd, F->S);
 		e=IECFinite(&Q) ? IEC_RMSErr(Q, F->K[i], F->S) : 1.0;
 		E+=isfinite(e) ? e : 1.0;
 	}
@@ -1095,14 +1121,14 @@ static int IECValid(const curvepars *C, double G, double T)
 #define IEC_NFIT 128   // maximum number of curves used by the simplex
 #define IEC_STEP 0.2   // initial simplex size relative to the coefficient scale
 #define IEC_POLISH 0.05 // simplex size of the restart from the optimum
-/* fit IEC 60891 version 2 or 3. Returns the ESP at Tstd, Gstd and sets the
+/* fit IEC 60891 version 2 or 3 (4: RsG-modified v3). Returns the ESP at Tstd, Gstd and sets the
  * coefficients c (v3 layout). On failure all values are NaN. */
-static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double c[6], MODEL_TYPE M, MODELSET *S)
+static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double c[IEC_NC], MODEL_TYPE M, MODELSET *S)
 {
-	static const int idx2[5]={0, 1, 2, 4, 5}, idx3[6]={0, 1, 2, 3, 4, 5};
+	static const int idx2[5]={0, 1, 2, 4, 5}, idx3[7]={0, 1, 2, 3, 4, 5, 6};
 	generic_pars P;
 	IECFit F={0};
-	double y[6]={0}, ymin[6]={0}, step[6], floor[6], E0, E, Emin, R0=0, reqmin;
+	double y[IEC_NC]={0}, ymin[IEC_NC]={0}, step[IEC_NC], floor[IEC_NC], E0, E, Emin, R0=0, reqmin;
 	point *kp=NULL;
 	curvepars *Cs=NULL, *Cv=NULL;
 	double *Gs=NULL, *Ts=NULL, *Gv=NULL, *Tv=NULL;
@@ -1111,7 +1137,7 @@ static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T,
 	P.TYPE=M;
 	for (k=0;k<10;k++)
 		P.pars[k]=NAN;
-	for (k=0;k<6;k++)
+	for (k=0;k<IEC_NC;k++)
 		c[k]=NAN;
 	/* skip the curves the fit cannot use */
 	Cv=Emalloc(N*sizeof(curvepars));
@@ -1131,11 +1157,22 @@ static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T,
 	G=Gv;
 	T=Tv;
 	N=k;
-	if ((N<3) || IECStart(C, G, T, N, Tstd, Gstd, F.c0))
+	if (N<3)
+		goto IECFITFINISH;
+	if ((version==4)&&(M==M_PVSPLINE))
+	{
+		/* PV-spline: start from the v3 optimum (rho=0). From the least squares
+		 * start values the simplex can end worse than v3 (rho>0) */
+		IEC60891Fit(3, C, G, T, N, Tstd, Gstd, F.c0, M, S);
+		for (k=0;k<IEC_NC;k++)
+			if (!isfinite(F.c0[k]))
+				goto IECFITFINISH;
+	}
+	else if (IECStart(C, G, T, N, Tstd, Gstd, F.c0))
 		goto IECFITFINISH;
 
 	F.version=version;
-	F.nc=(version==2) ? 5 : 6;
+	F.nc=(version==2) ? 5 : ((version==3) ? 6 : 7);
 	F.idx=(version==2) ? idx2 : idx3;
 	/* the curves for the simplex: all, or an evenly spaced subset */
 	n=(N>IEC_NFIT) ? IEC_NFIT : N;
@@ -1194,7 +1231,8 @@ static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T,
 	floor[3]=1e-2;    // B2
 	floor[4]=1e-2*R0; // Rs
 	floor[5]=1e-4*R0; // kappa [Ohm/K]
-	for (k=0;k<6;k++)
+	floor[6]=1e-2*R0; // rho [Ohm]
+	for (k=0;k<IEC_NC;k++)
 		F.scale[k]=fabs(F.c0[k])+floor[k];
 
 	Emin=E0=IECErr(y, &F);
@@ -1222,12 +1260,14 @@ static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T,
 	F.N=N;
 	if (IECTranslateAll(&F, c)==0)
 	{
-		for (k=0;k<6;k++)
+		for (k=0;k<IEC_NC;k++)
 			c[k]=NAN;
 		goto IECFITFINISH;
 	}
 	if (version==2)
 		c[3]=0;
+	if (version<4)
+		c[6]=0;
 	P=F.ref;
 IECFITFINISH:
 	free(F.tr);
@@ -1248,7 +1288,7 @@ IECFITFINISH:
 /* fit the IEC 60891 v2 coefficients, returns the ESP at Tstd, Gstd (NaN on failure) */
 generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
-	double c[6];
+	double c[IEC_NC];
 	generic_pars P=IEC60891Fit(2, C, G, T, N, Tstd, Gstd, c, M, S);
 	(*alpha)=c[0];
 	(*beta)=c[1];
@@ -1261,7 +1301,7 @@ generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Ts
 /* fit the IEC 60891 v3 coefficients, returns the ESP at Tstd, Gstd (NaN on failure) */
 generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
 {
-	double c[6];
+	double c[IEC_NC];
 	generic_pars P=IEC60891Fit(3, C, G, T, N, Tstd, Gstd, c, M, S);
 	(*alpha)=c[0];
 	(*beta)=c[1];
@@ -1271,6 +1311,23 @@ generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Ts
 	(*kappa)=c[5];
 	return P;
 }
+
+/* fit the RsG-modified IEC 60891 v3 coefficients (v3 with Rs(G,T) = Rs + kappa (T-Tstd)
+ * + rho ln(G/Gstd)), returns the ESP at Tstd, Gstd (NaN on failure) */
+generic_pars RsGmodIEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, MODEL_TYPE M, MODELSET *S)
+{
+	double c[IEC_NC];
+	generic_pars P=IEC60891Fit(4, C, G, T, N, Tstd, Gstd, c, M, S);
+	(*alpha)=c[0];
+	(*beta)=c[1];
+	(*B1)=c[2];
+	(*B2)=c[3];
+	(*Rs)=c[4];
+	(*kappa)=c[5];
+	(*rho)=c[6];
+	return P;
+}
+#undef IEC_NC
 
 // some utility functions to test plausibility of a set of curvepars
 /* hermite cubic spline base equations for the second derivative */

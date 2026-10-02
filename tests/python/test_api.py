@@ -317,6 +317,47 @@ def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version, model)
     assert not np.asarray(fast).flags.writeable
 
 
+@pytest.mark.parametrize("model", ["PV-spline", "PV-Bezier"])
+def test_rsgmod_iec60891_v3_rho0_is_the_norm(gt_data, model):
+    T, G, esp = gt_data
+    v3 = pc.iec60891.IEC60891v3.fit(esp, T, G, model=model)
+    coef = dict(alpha=v3.alpha, beta=v3.beta, b1=v3.b1, b2=v3.b2, rs=0.1, kappa=1e-3,
+                esp_ref=v3.esp_ref, model=model)
+    norm = pc.iec60891.IEC60891v3(**coef)
+    mod = pc.iec60891.RsGmodIEC60891v3(rho=0.0, **coef)
+    assert not isinstance(mod, pc.iec60891.IEC60891v3)
+    np.testing.assert_array_equal(np.asarray(mod.translate(T=T, G=G)), np.asarray(norm.translate(T=T, G=G)))
+    a = mod.translate(T=40.0, G=300.0, esp=esp[3], T_from=float(T[3]), G_from=float(G[3]))
+    b = norm.translate(T=40.0, G=300.0, esp=esp[3], T_from=float(T[3]), G_from=float(G[3]))
+    assert a == b
+    with pytest.raises(TypeError):
+        pc.iec60891.RsGmodIEC60891v3(alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0, rho=0)
+
+
+def test_rsgmod_iec60891_v3_fit_recovers_rho(gt_data):
+    T, G, esp = gt_data
+    v3 = pc.iec60891.IEC60891v3.fit(esp, T, G)
+    rs = 0.05 * v3.esp_ref.voc / v3.esp_ref.isc
+    true = pc.iec60891.RsGmodIEC60891v3(
+        alpha=v3.alpha, beta=v3.beta, b1=v3.b1, b2=v3.b2, rs=rs, kappa=1e-3 * rs, rho=-0.3 * rs,
+        esp_ref=v3.esp_ref, model="PV-Bezier",
+    )
+    data = true.translate(T=T, G=G)
+    # rho raises Rs at low irradiance
+    assert true.translate(T=25.0, G=200.0).pmpp < pc.iec60891.IEC60891v3(
+        true.alpha, true.beta, true.b1, true.b2, true.rs, true.kappa,
+        esp_ref=true.esp_ref, model="PV-Bezier").translate(T=25.0, G=200.0).pmpp
+    fit = pc.iec60891.RsGmodIEC60891v3.fit(data, T, G, model="PV-Bezier")
+    assert isinstance(fit, pc.iec60891.RsGmodIEC60891v3)
+    assert fit.rho == pytest.approx(true.rho, rel=0.05)
+    assert fit.rs == pytest.approx(true.rs, rel=0.05)
+    norm = pc.iec60891.IEC60891v3.fit(data, T, G, model="PV-Bezier")
+
+    def err(c):
+        return np.median(np.abs(np.asarray(c.translate(T=T, G=G).pmpp) / np.asarray(data.pmpp) - 1))
+    assert err(fit) < err(norm)
+
+
 def test_iec60891_translate_between_conditions(gt_data):
     T, G, esp = gt_data
     # v3: v2 is not invertible, translating back to the reference spreads more

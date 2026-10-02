@@ -128,7 +128,11 @@ Translate ESP using the IEC60891 v2 norm model. Takes as input ESP, input temper
 
 Translate ESP using the IEC60891 v3 norm model. Takes as input ESP, input temperature and irradiance, and output temperature and irradiance. The routine then computes for each input ESP the output ESP.
 
-All four IEC60891 routines take an optional last argument naming the interpolation model used for the translation: "PV-spline" (default) or "PV-Bezier". The IEC60891 map of the points of a curve is affine and a Bézier curve is invariant under affine maps, so a PV-Bezier curve is translated exactly. With the PV-spline only the knots and their slopes are translated, which for curves with a high series resistance occasionally leads to large errors in the translated mpp. Use the same model for fitting and translating.
+### pvcraze_fit_RsGmodIEC60891_v3, pvcraze_translate_RsGmodIEC60891_v3
+
+A modification of the IEC60891 v3 model that is **not** part of the norm, for outdoor data: the series resistance depends on the irradiance, Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd). The arguments are those of the v3 routines; the fit returns rho as an extra output after kappa, the translation takes rho as an extra argument after kappa. With rho=0 the results equal those of the v3 routines. With the PV-spline the fit starts from the v3 fit.
+
+All IEC60891 routines take an optional last argument naming the interpolation model used for the translation: "PV-spline" (default) or "PV-Bezier". The IEC60891 map of the points of a curve is affine and a Bézier curve is invariant under affine maps, so a PV-Bezier curve is translated exactly. With the PV-spline only the knots and their slopes are translated, which for curves with a high series resistance occasionally leads to large errors in the translated mpp. Use the same model for fitting and translating.
 
 ## Python Interface
 The Python package is a separate, object based interface; it does not mirror
@@ -590,6 +594,14 @@ curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N);
 
 #### pv_craze_translate_IEC60891_v3
 
+#### pv_craze_fit_RsGmodIEC60891_v3
+
+#### pv_craze_translate_RsGmodIEC60891_v3
+A modification of IEC60891 v3 that is **not** part of the norm: the series
+resistance depends on the irradiance, Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd).
+The arguments are those of the v3 routines plus rho (after kappa); rho=0 gives
+results identical to the v3 routines. The fit also fits rho; with the PV-spline
+it starts from the v3 fit (rho=0) and takes about twice as long.
 
 #### pv_craze_g_distcurve
 
@@ -756,6 +768,7 @@ coef.translate(T=60, G=800)                     # reference -> other conditions
 coef.translate(T=25, G=1000, esp=esp, T_from=T, G_from=G)   # any -> any
 iec60891.IEC60891v2(alpha=..., beta=..., a=..., rs=..., kappa=...)  # known coefficients
 iec60891.fit(esp, T=T, G=G, model="PV-Bezier")  # translate through the PV-Bezier
+iec60891.RsGmodIEC60891v3.fit(esp, T=T, G=G)    # NOT the norm: v3 + rho ln(G/g_ref) in Rs
 
 gt = diode_gt.fit(esp, T=T, G=G)                # DiodeGT
 gt.at(T=60, G=800)                              # diode ModelParams at those conditions
@@ -773,6 +786,13 @@ The `model` field (`Model.PV_SPLINE`, default, or `Model.PV_BEZIER`) selects
 the interpolation the translation runs through; `fit` stores it in the result
 so `translate` uses the same model. The PV-Bezier curve is translated exactly
 (the IEC 60891 map is affine), the PV-spline only at its knots.
+
+`RsGmodIEC60891v3` is a modification of IEC 60891 v3, not part of the norm,
+for outdoor data: the series resistance gets an irradiance term,
+`Rs(G, T) = rs + kappa (T - t_ref) + rho ln(G / g_ref)`. The voltage
+translation becomes `V2 = V1 - Rs(G2,T2) I2 + Rs(G1,T1) I1` plus the Voc terms
+of the norm, so it stays round trip consistent. With `rho = 0` it gives the
+same results as `IEC60891v3`, bit for bit. `iec60891.fit` only fits the norm.
 
 ### Migrating from the pvcraze 1.x Python API
 | old | new |

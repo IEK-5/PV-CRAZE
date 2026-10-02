@@ -78,6 +78,13 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
                    double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, MODEL_TYPE model);
 curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
                    double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model);
+
+// RsG-modified IEC60891 version 3, NOT part of the norm: v3 with an irradiance dependent
+// series resistance Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd). rho=0 is IEC60891 v3.
+curvepars *pv_craze_translate_RsGmodIEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, MODEL_TYPE model);
+curvepars pv_craze_fit_RsGmodIEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, int FURTHEST_N, int off, MODEL_TYPE model);
                    
 /* **************************************************
  * Diode model G-T translation model

@@ -5,6 +5,12 @@ Two editions of the norm are implemented:
 * :class:`IEC60891v2` -- IEC 60891 edition 2 (2009)
 * :class:`IEC60891v3` -- IEC 60891 edition 3 (2021)
 
+and one modification that is *not* part of the norm:
+
+* :class:`RsGmodIEC60891v3` -- edition 3 with an irradiance dependent series
+  resistance, ``Rs(G, T) = rs + kappa (T - t_ref) + rho ln(G / g_ref)``. For
+  ``rho = 0`` it is :class:`IEC60891v3`. The extra term helps for outdoor data.
+
 Each class holds the translation coefficients. Get them by fitting measured
 ESP at several irradiances and temperatures, or construct the object directly
 from known (e.g. datasheet) coefficients::
@@ -42,7 +48,7 @@ from ._arrays import as_float
 from ._esp import ESP, as_esp
 from ._models import Model
 
-__all__ = ["IEC60891v2", "IEC60891v3", "fit"]
+__all__ = ["IEC60891v2", "IEC60891v3", "RsGmodIEC60891v3", "fit"]
 
 _SCALAR = (int, float, np.integer, np.floating)
 _MODELS = (Model.PV_SPLINE, Model.PV_BEZIER)
@@ -253,8 +259,44 @@ class IEC60891v2(_Translation):
         return cls(alpha, beta, a, rs, kappa, float(t_ref), float(g_ref), ESP._wrap(esp_ref), m)
 
 
+class _V3(_Translation):
+    """The parts IEC60891v3 and RsGmodIEC60891v3 share."""
+
+    voc_ref: Optional[float]
+    rs: float
+    kappa: float
+
+    _core_fn = staticmethod(_core.iec60891_v3_translate)
+    _core_fn1 = staticmethod(_core.iec60891_v3_translate1)
+
+    def __post_init__(self) -> None:
+        self._check_model()
+        if self.esp_ref is not None:
+            if self.esp_ref.is_batch:
+                raise ValueError("esp_ref must be a single ESP")
+            if self.voc_ref is None:
+                object.__setattr__(self, "voc_ref", self.esp_ref.voc)
+        if self.voc_ref is None:
+            raise TypeError(f"{type(self).__name__} needs voc_ref (or esp_ref)")
+
+    def _rho(self) -> float:
+        return 0.0
+
+    def _coef_args(self) -> Tuple[float, ...]:
+        return (self.voc_ref, self.t_ref, self.g_ref, self.alpha, self.beta,
+                self.b1, self.b2, self.rs, self.kappa, self._rho())
+
+    @staticmethod
+    def _fit(esp, T, G, t_ref, g_ref, max_points, seed_index, model, fit_rho):
+        m = _iec_model(model)
+        rows, t, g, fn, off = _fit_args(esp, T, G, max_points, seed_index)
+        esp_ref, *c = _core.iec60891_v3_fit(rows, t, g, float(t_ref), float(g_ref), fn, off, m.id, fit_rho)
+        _check_fit(esp_ref)
+        return ESP._wrap(esp_ref), c, m
+
+
 @dataclass(frozen=True)
-class IEC60891v3(_Translation):
+class IEC60891v3(_V3):
     """IEC 60891 edition 3 (2021), procedure 2.
 
     Attributes
@@ -292,23 +334,6 @@ class IEC60891v3(_Translation):
     esp_ref: Optional[ESP] = field(default=None, compare=False)
     model: Model = Model.PV_SPLINE
 
-    def __post_init__(self) -> None:
-        self._check_model()
-        if self.esp_ref is not None:
-            if self.esp_ref.is_batch:
-                raise ValueError("esp_ref must be a single ESP")
-            if self.voc_ref is None:
-                object.__setattr__(self, "voc_ref", self.esp_ref.voc)
-        if self.voc_ref is None:
-            raise TypeError("IEC60891v3 needs voc_ref (or esp_ref)")
-
-    _core_fn = staticmethod(_core.iec60891_v3_translate)
-    _core_fn1 = staticmethod(_core.iec60891_v3_translate1)
-
-    def _coef_args(self) -> Tuple[float, ...]:
-        return (self.voc_ref, self.t_ref, self.g_ref, self.alpha, self.beta,
-                self.b1, self.b2, self.rs, self.kappa)
-
     @classmethod
     def fit(
         cls,
@@ -323,11 +348,72 @@ class IEC60891v3(_Translation):
         model: Union[Model, str] = Model.PV_SPLINE,
     ) -> "IEC60891v3":
         """Fit the coefficients and the reference ESP. Arguments as :meth:`IEC60891v2.fit`."""
-        m = _iec_model(model)
-        rows, t, g, fn, off = _fit_args(esp, T, G, max_points, seed_index)
-        esp_ref, alpha, beta, b1, b2, rs, kappa = _core.iec60891_v3_fit(rows, t, g, float(t_ref), float(g_ref), fn, off, m.id)
-        _check_fit(esp_ref)
-        return cls(alpha, beta, b1, b2, rs, kappa, float(t_ref), float(g_ref), esp_ref=ESP._wrap(esp_ref), model=m)
+        esp_ref, c, m = cls._fit(esp, T, G, t_ref, g_ref, max_points, seed_index, model, False)
+        alpha, beta, b1, b2, rs, kappa, _ = c
+        return cls(alpha, beta, b1, b2, rs, kappa, float(t_ref), float(g_ref), esp_ref=esp_ref, model=m)
+
+
+@dataclass(frozen=True)
+class RsGmodIEC60891v3(_V3):
+    """IEC 60891 edition 3, procedure 2, with an irradiance dependent series resistance.
+
+    This is a modification, **not** the norm. The series resistance of the
+    translation is
+
+        ``Rs(G, T) = rs + kappa (T - t_ref) + rho ln(G / g_ref)``
+
+    and the voltage translation becomes ``V2 = V1 - Rs(G2, T2) I2 + Rs(G1, T1) I1
+    + (the Voc terms of the norm)``. With ``rho = 0`` this is exactly
+    :class:`IEC60891v3`; the translation stays round trip consistent.
+
+    Attributes
+    ----------
+    alpha, beta, b1, b2, rs, kappa, t_ref, g_ref, voc_ref, esp_ref, model:
+        As :class:`IEC60891v3`.
+    rho:
+        Irradiance coefficient of the series resistance [Ohm], per unit of
+        ``ln(G / g_ref)``.
+    """
+
+    alpha: float
+    beta: float
+    b1: float
+    b2: float
+    rs: float
+    kappa: float
+    rho: float
+    t_ref: float = 25.0
+    g_ref: float = 1000.0
+    voc_ref: Optional[float] = None
+    esp_ref: Optional[ESP] = field(default=None, compare=False)
+    model: Model = Model.PV_SPLINE
+
+    def _rho(self) -> float:
+        return self.rho
+
+    @classmethod
+    def fit(
+        cls,
+        esp: Any,
+        T: Any,
+        G: Any,
+        *,
+        t_ref: float = 25.0,
+        g_ref: float = 1000.0,
+        max_points: Optional[int] = None,
+        seed_index: int = 0,
+        model: Union[Model, str] = Model.PV_SPLINE,
+    ) -> "RsGmodIEC60891v3":
+        """Fit the coefficients, including ``rho``, and the reference ESP.
+
+        The fit is that of :meth:`IEC60891v2.fit` with ``rho`` as one more free
+        coefficient. With the PV-spline it starts from the :class:`IEC60891v3`
+        fit (``rho = 0``), which takes about twice as long. Arguments as
+        :meth:`IEC60891v2.fit`.
+        """
+        esp_ref, c, m = cls._fit(esp, T, G, t_ref, g_ref, max_points, seed_index, model, True)
+        alpha, beta, b1, b2, rs, kappa, rho = c
+        return cls(alpha, beta, b1, b2, rs, kappa, rho, float(t_ref), float(g_ref), esp_ref=esp_ref, model=m)
 
 
 def fit(
@@ -342,7 +428,10 @@ def fit(
     seed_index: int = 0,
     model: Union[Model, str] = Model.PV_SPLINE,
 ) -> Union[IEC60891v2, IEC60891v3]:
-    """Fit IEC 60891 ``version`` 2 or 3 (default). See :meth:`IEC60891v2.fit`."""
+    """Fit IEC 60891 ``version`` 2 or 3 (default). See :meth:`IEC60891v2.fit`.
+
+    Only the norm; fit the modified model with :meth:`RsGmodIEC60891v3.fit`.
+    """
     cls = {2: IEC60891v2, 3: IEC60891v3}.get(version)
     if cls is None:
         raise ValueError(f"version must be 2 or 3, got {version!r}")

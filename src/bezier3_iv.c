@@ -784,13 +784,13 @@ generic_pars B3IEC60891_v2(generic_pars P, double alpha, double beta, double a, 
 	return B3SolPars(&B, S);
 }
 
-generic_pars B3IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
+generic_pars B3IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
 {
 	B3pars B;
 	double dIdV;
 	int i;
 	B=Generic2B3Pars(P,S);
 	for (i=0;i<13;i++)
-		IEC_v3(B.V[i], Vocstd, B.I[i], 0, G1, G2, Gstd, T1, T2, Tstd, alpha, beta, B1, B2, Rs, kappa, B.V+i, B.I+i, &dIdV);
+		IEC_v3(B.V[i], Vocstd, B.I[i], 0, G1, G2, Gstd, T1, T2, Tstd, alpha, beta, B1, B2, Rs, kappa, rho, B.V+i, B.I+i, &dIdV);
 	return B3SolPars(&B, S);
 }

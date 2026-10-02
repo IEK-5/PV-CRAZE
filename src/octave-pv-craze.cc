@@ -68,6 +68,8 @@ typedef enum {IFILTER,SFILTER, MPPMETHOD, MPPDV, MPPDI, SCDV, OCDI, MODEL, RESAM
 // PKG_ADD: autoload("pvcraze_fit_IEC60891_v3","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_IEC60891_v2","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_IEC60891_v3","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_fit_RsGmodIEC60891_v3","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_translate_RsGmodIEC60891_v3","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_fit_diode_GT","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_translate_diode_GT","pv_craze.oct");
 
@@ -1511,33 +1513,8 @@ Output:\n\
 }
 
 
-DEFUN_DLD (pvcraze_fit_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])\n\
-pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
-coefficients and determines standard test condition curve parameters to best describe \n\
-provided temperature and irradiance dependent curve parameters Uses the IEC60891 version 3 (2021)\n\n\
-Input:\n\
-@itemize \n\
-@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
-@item @var{T}: Array with temperatures, one temperature per row in esp\n\
-@item @var{G}: Array with irradiances, one irradiance per row in esp\n\
-@item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
-@item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
-@item @var{furthest_N}: Number of samples to select using furthest sampling\n\
-@item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
-@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
-@end itemize\n\
-Output:\n\
-@itemize \n\
-@item @var{esp_std}: Parameters at standard test conditions\n\
-@item @var{alpha}:     IEC60891 alpha\n\
-@item @var{beta}:      IEC60891 beta\n\
-@item @var{B1}:        IEC60891 B1\n\
-@item @var{B2}:        IEC60891 B2\n\
-@item @var{Rs}:        IEC60891 Rs\n\
-@item @var{kappa}:     IEC60891 kappa\n\
-@end itemize\n\
-@end deftypefn")
+/* body of pvcraze_fit_IEC60891_v3 and, with rsgmod, pvcraze_fit_RsGmodIEC60891_v3 */
+static octave_value_list fit_IEC60891_v3(const octave_value_list& args, int nargout, bool rsgmod)
 {
   	int nargin = args.length ();
 	octave_value_list retval;
@@ -1546,7 +1523,7 @@ Output:\n\
 	Matrix T,G,Pin;
 	RowVector Pout;
 	double *TT, *GG;
-	double alpha, beta, B1, B2, Rs, kappa, Tstd, Gstd;
+	double alpha, beta, B1, B2, Rs, kappa, rho=0, Tstd, Gstd;
 	int N, Nr,Nc;
 	int FN=0, off=0;
 	int i;
@@ -1633,7 +1610,10 @@ Output:\n\
 	
 	}
 	
-	Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN, off, model);
+	if (rsgmod)
+		Cout=pv_craze_fit_RsGmodIEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, &rho, FN, off, model);
+	else
+		Cout=pv_craze_fit_IEC60891_v3(Cin, GG, TT, N, Tstd,Gstd, &alpha, &beta, &B1, &B2, &Rs, &kappa, FN, off, model);
 	
 	free(GG);
 	free(TT);
@@ -1666,7 +1646,74 @@ Output:\n\
 		retval(i++)=octave_value(Rs);
 	if (nargout>i) 
 		retval(i++)=octave_value(kappa);
+	if (rsgmod && (nargout>i))
+		retval(i++)=octave_value(rho);
 	return retval;	
+}
+
+DEFUN_DLD (pvcraze_fit_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa] =} pvcraze_fit_IEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])\n\
+pvcraze_fit_IEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
+coefficients and determines standard test condition curve parameters to best describe \n\
+provided temperature and irradiance dependent curve parameters Uses the IEC60891 version 3 (2021)\n\n\
+Input:\n\
+@itemize \n\
+@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
+@item @var{T}: Array with temperatures, one temperature per row in esp\n\
+@item @var{G}: Array with irradiances, one irradiance per row in esp\n\
+@item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
+@item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
+@item @var{furthest_N}: Number of samples to select using furthest sampling\n\
+@item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{esp_std}: Parameters at standard test conditions\n\
+@item @var{alpha}:     IEC60891 alpha\n\
+@item @var{beta}:      IEC60891 beta\n\
+@item @var{B1}:        IEC60891 B1\n\
+@item @var{B2}:        IEC60891 B2\n\
+@item @var{Rs}:        IEC60891 Rs\n\
+@item @var{kappa}:     IEC60891 kappa\n\
+@end itemize\n\
+@end deftypefn")
+{
+	return fit_IEC60891_v3(args, nargout, false);
+}
+
+DEFUN_DLD (pvcraze_fit_RsGmodIEC60891_v3, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{esp_std}, alpha, beta, B1, B2, Rs, kappa, rho] =} pvcraze_fit_RsGmodIEC60891_v3 (@var{esp}, T, G, Tstd, Gstd [,furthest_N[,offset]][,model])\n\
+pvcraze_fit_RsGmodIEC60891_v3 is part of the PV-CRAZE package and fits IEC60891 translation\n\
+coefficients and determines standard test condition curve parameters to best describe \n\
+provided temperature and irradiance dependent curve parameters. Uses a modification of the IEC60891\n\
+version 3 (2021) that is NOT part of the norm: an irradiance dependent series resistance\n\
+Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd). For rho=0 it is IEC60891 version 3.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
+@item @var{T}: Array with temperatures, one temperature per row in esp\n\
+@item @var{G}: Array with irradiances, one irradiance per row in esp\n\
+@item @var{Tstd}: Scalar value for the standard test conditions Temperature\n\
+@item @var{Gstd}: Scalar value for the standard test conditions Irradiance\n\
+@item @var{furthest_N}: Number of samples to select using furthest sampling\n\
+@item @var{offset}: If furthest sampling is used, the offset to use (changes which samples are chosen)\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{esp_std}: Parameters at standard test conditions\n\
+@item @var{alpha}:     IEC60891 alpha\n\
+@item @var{beta}:      IEC60891 beta\n\
+@item @var{B1}:        IEC60891 B1\n\
+@item @var{B2}:        IEC60891 B2\n\
+@item @var{Rs}:        IEC60891 Rs\n\
+@item @var{kappa}:     IEC60891 kappa\n\
+@item @var{rho}:       Irradiance coefficient of Rs\n\
+@end itemize\n\
+@end deftypefn")
+{
+	return fit_IEC60891_v3(args, nargout, true);
 }
 
 
@@ -1858,33 +1905,8 @@ Output:\n\
 	
 }
 
-DEFUN_DLD (pvcraze_translate_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
-@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v3 (@var{esp}, T1, G1, T2, G2, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa [,model])\n\
-pvcraze_translate_IEC60891_v3 is part of the PV-CRAZE package and translates curve parameters from \n\
-conditions G1, T1 to G2, T2, using procedure 2 from IEC60891 norm version 3 (2021)\n\n\
-Input:\n\
-@itemize \n\
-@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
-@item @var{T1}: Array with temperatures, one temperature per row in esp\n\
-@item @var{G1}: Array with irradiances, one irradiance per row in esp\n\
-@item @var{T2}: Array with output temperatures\n\
-@item @var{G2}: Array with output irradiances\n\
-@item @var{Vocstd}: Open-Circuit voltage at standard test conditions\n\
-@item @var{Tstd}:   Standard test conditions temperature\n\
-@item @var{Gstd}:   Standard test conditions irradiance\n\
-@item @var{alpha}:  IEC60891 alpha\n\
-@item @var{beta}:   IEC60891 beta\n\
-@item @var{B1}:     IEC60891 B1\n\
-@item @var{B2}:     IEC60891 B2\n\
-@item @var{Rs}:     IEC60891 Rs\n\
-@item @var{kappa}:  IEC60891 kappa\n\
-@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
-@end itemize\n\
-Output:\n\
-@itemize \n\
-@item @var{esp}: Array with translated extended parameters. The length of the array is the maximum of the length of the input (T1/G1 or G2/T2)\n\
-@end itemize\n\
-@end deftypefn")
+/* body of pvcraze_translate_IEC60891_v3 and, with rsgmod, pvcraze_translate_RsGmodIEC60891_v3 */
+static octave_value_list translate_IEC60891_v3(const octave_value_list& args, bool rsgmod)
 {
   	int nargin = args.length ();
 	octave_value_list retval;
@@ -1892,13 +1914,13 @@ Output:\n\
 	curvepars *Cout;
 	Matrix T1,G1,T2,G2,Pin,Pout;
 	double *TT1, *GG1, *TT2, *GG2;
-	double alpha, beta, B1, B2, Rs, kappa, Vocstd, Gstd, Tstd;
+	double alpha, beta, B1, B2, Rs, kappa, rho=0, Vocstd, Gstd, Tstd;
 	int N, Nr,Nc, M, Mr, Mc;
 	int i;
 	MODEL_TYPE model;
 	if (!IEC_model_arg(args, &nargin, &model))
 		return octave_value_list ();
-  	if (nargin != 14)
+  	if (nargin != (rsgmod ? 15 : 14))
 	{
     	print_usage ();
 		return octave_value_list ();
@@ -1918,6 +1940,8 @@ Output:\n\
 	B2=args(11).double_value();
 	Rs=args(12).double_value();
 	kappa=args(13).double_value();
+	if (rsgmod)
+		rho=args(14).double_value();
 	
 		
 	Nr=Pin.rows();
@@ -2019,7 +2043,10 @@ Output:\n\
 		TT2[i]=T2(i,0);	
 		GG2[i]=G2(i,0);		
 	}
-	Cout=pv_craze_translate_IEC60891_v3(Cin, GG1,TT1, N, GG2, TT2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model);
+	if (rsgmod)
+		Cout=pv_craze_translate_RsGmodIEC60891_v3(Cin, GG1,TT1, N, GG2, TT2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, model);
+	else
+		Cout=pv_craze_translate_IEC60891_v3(Cin, GG1,TT1, N, GG2, TT2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model);
 	free(GG1);
 	free(GG2);
 	free(TT1);
@@ -2053,6 +2080,71 @@ Output:\n\
 	retval(0)=octave_value(Pout);
 	return retval;	
 	
+}
+
+DEFUN_DLD (pvcraze_translate_IEC60891_v3, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{esp}] =} pvcraze_translate_IEC60891_v3 (@var{esp}, T1, G1, T2, G2, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa [,model])\n\
+pvcraze_translate_IEC60891_v3 is part of the PV-CRAZE package and translates curve parameters from \n\
+conditions G1, T1 to G2, T2, using procedure 2 from IEC60891 norm version 3 (2021)\n\n\
+Input:\n\
+@itemize \n\
+@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
+@item @var{T1}: Array with temperatures, one temperature per row in esp\n\
+@item @var{G1}: Array with irradiances, one irradiance per row in esp\n\
+@item @var{T2}: Array with output temperatures\n\
+@item @var{G2}: Array with output irradiances\n\
+@item @var{Vocstd}: Open-Circuit voltage at standard test conditions\n\
+@item @var{Tstd}:   Standard test conditions temperature\n\
+@item @var{Gstd}:   Standard test conditions irradiance\n\
+@item @var{alpha}:  IEC60891 alpha\n\
+@item @var{beta}:   IEC60891 beta\n\
+@item @var{B1}:     IEC60891 B1\n\
+@item @var{B2}:     IEC60891 B2\n\
+@item @var{Rs}:     IEC60891 Rs\n\
+@item @var{kappa}:  IEC60891 kappa\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{esp}: Array with translated extended parameters. The length of the array is the maximum of the length of the input (T1/G1 or G2/T2)\n\
+@end itemize\n\
+@end deftypefn")
+{
+	return translate_IEC60891_v3(args, false);
+}
+
+DEFUN_DLD (pvcraze_translate_RsGmodIEC60891_v3, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{esp}] =} pvcraze_translate_RsGmodIEC60891_v3 (@var{esp}, T1, G1, T2, G2, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho [,model])\n\
+pvcraze_translate_RsGmodIEC60891_v3 is part of the PV-CRAZE package and translates curve parameters from \n\
+conditions G1, T1 to G2, T2, using a modification of procedure 2 from IEC60891 norm version 3 (2021)\n\
+that is NOT part of the norm: an irradiance dependent series resistance\n\
+Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd). For rho=0 it is IEC60891 version 3.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{esp}: array with extended solar cell parameters, one row per conditions\n\
+@item @var{T1}: Array with temperatures, one temperature per row in esp\n\
+@item @var{G1}: Array with irradiances, one irradiance per row in esp\n\
+@item @var{T2}: Array with output temperatures\n\
+@item @var{G2}: Array with output irradiances\n\
+@item @var{Vocstd}: Open-Circuit voltage at standard test conditions\n\
+@item @var{Tstd}:   Standard test conditions temperature\n\
+@item @var{Gstd}:   Standard test conditions irradiance\n\
+@item @var{alpha}:  IEC60891 alpha\n\
+@item @var{beta}:   IEC60891 beta\n\
+@item @var{B1}:     IEC60891 B1\n\
+@item @var{B2}:     IEC60891 B2\n\
+@item @var{Rs}:     IEC60891 Rs\n\
+@item @var{kappa}:  IEC60891 kappa\n\
+@item @var{rho}:    Irradiance coefficient of Rs\n\
+@item @var{model}: Interpolation model for the translation, PV-spline (default) or PV-Bezier\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{esp}: Array with translated extended parameters. The length of the array is the maximum of the length of the input (T1/G1 or G2/T2)\n\
+@end itemize\n\
+@end deftypefn")
+{
+	return translate_IEC60891_v3(args, true);
 }
 
 

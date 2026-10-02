@@ -909,13 +909,14 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 
 
 
-curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
-                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, MODEL_TYPE model)
+/* v3 translation, rho!=0 gives the RsG-modified v3 with Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd) */
+static curvepars *translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, MODEL_TYPE model, char *head)
 {
 	int i, pc=0, nn;
 	curvepars *Cout;
 	if (pvcraze_verbose&VERB_HEAD)
-		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Translate");
+		pvcraze_PrintHead(N, head);
 		
 	BarScale(LLEN, TICS);
 	if (!IEC_model_ok(model))
@@ -942,7 +943,7 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 		P.pars[7]=pars[i%N].Iqmp2;
 		P.pars[8]=pars[i%N].Gsc;
 		P.pars[9]=pars[i%N].Roc;
-		O=IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, Vocstd, T1[i%N], T2[i%M], Tstd, G1[i%N], G2[i%M], Gstd, &DefaultMODSET);
+		O=IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, rho, Vocstd, T1[i%N], T2[i%M], Tstd, G1[i%N], G2[i%M], Gstd, &DefaultMODSET);
 		Cout[i].Voc=O.pars[0];
 		Cout[i].Isc=O.pars[1];
 		Cout[i].Vmpp=O.pars[2];
@@ -970,6 +971,20 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 	}
 	ProgressBar(100, pc, LLEN, TICS);
 	return Cout;
+}
+
+curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, MODEL_TYPE model)
+{
+	return translate_IEC60891_v3(pars, G1, T1, N, G2, T2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, 0.0, model,
+		"Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Translate");
+}
+
+curvepars *pv_craze_translate_RsGmodIEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, MODEL_TYPE model)
+{
+	return translate_IEC60891_v3(pars, G1, T1, N, G2, T2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, model,
+		"Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - RsG-modified IEC60891 v3 Translate");
 }
 
 MODELSET FitIECMODSET = {
@@ -1021,8 +1036,9 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 }
 
 
-curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
+/* v3 fit, with rho==NULL the norm, otherwise the RsG-modified v3 with a fitted rho */
+static curvepars fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, int FURTHEST_N, int off, MODEL_TYPE model)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1030,7 +1046,8 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	curvepars *cc;
 	int n;
 	if (pvcraze_verbose&VERB_HEAD)
-		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
+		pvcraze_PrintHead(N, rho ? "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - RsG-modified IEC60891 v3 Fit"
+		                         : "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
 	
 	if (!IEC_model_ok(model))
 		return Out;
@@ -1040,7 +1057,10 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	if (!n)
 		return Out;
 		
-	P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model, &FitIECMODSET);
+	if (rho)
+		P=RsGmodIEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, model, &FitIECMODSET);
+	else
+		P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -1056,6 +1076,18 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	free(cc);	
 
 	return Out;
+}
+
+curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
+{
+	return fit_IEC60891_v3(pars, G, T, N, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, NULL, FURTHEST_N, off, model);
+}
+
+curvepars pv_craze_fit_RsGmodIEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, int FURTHEST_N, int off, MODEL_TYPE model)
+{
+	return fit_IEC60891_v3(pars, G, T, N, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, FURTHEST_N, off, model);
 }
 
 MODELSET FitDIODEGTMODSET = {

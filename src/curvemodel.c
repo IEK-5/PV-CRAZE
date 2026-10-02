@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <float.h>
 #include "emalloc.h"
 #include "curve.h"
 #include "fitmodels.h"
@@ -338,10 +339,104 @@ double Solve_VI(double I, double Isc,  point *dp, void * pars, point (*model)(do
 }
 
 
+/* Find a root of f(t) on the bracket [a, b], f(a) and f(b) of opposite sign,
+ * with the Illinois variant of the regula falsi, to machine precision.
+ * f returns 0 where t is not valid. The function returns 0 on failure. */
+#define ILLINOIS_IT 100
+int RootIllinois(double a, double fa, double b, double fb, int (*f)(double, void *, double *), void *ctx, double *root)
+{
+	double c=a, fc, co;
+	int i, side=0;
+	if (fa==0)
+	{
+		(*root)=a;
+		return 1;
+	}
+	if (fb==0)
+	{
+		(*root)=b;
+		return 1;
+	}
+	if (fa*fb>0)
+		return 0;
+	for (i=0;i<ILLINOIS_IT;i++)
+	{
+		co=c;
+		c=(a*fb-b*fa)/(fb-fa);
+		if (!f(c, ctx, &fc))
+			return 0;
+		if (fc==0)
+			break;
+		if (fc*fb>0)
+		{
+			b=c;
+			fb=fc;
+			if (side==-1)
+				fa/=2;
+			side=-1;
+		}
+		else
+		{
+			a=c;
+			fa=fc;
+			if (side==1)
+				fb/=2;
+			side=1;
+		}
+		if ((i>0)&&(fabs(c-co)<=4*DBL_EPSILON*fabs(c)))
+			break;
+	}
+	(*root)=c;
+	return 1;
+}
+
+typedef struct {
+	point off;
+	void *pars;
+	point (*model)(double, point *, void *);
+} mpctx;
+
+// derivative of the power to the curve parameter
+static int MpSlope(double v, void *ctx, double *dP)
+{
+	const mpctx *C=(const mpctx *)ctx;
+	point p, dp;
+	p=C->model(v,&dp,C->pars);
+	(*dP)=dp.x*(p.y-C->off.y)+dp.y*(p.x-C->off.x);
+	return isfinite(*dP);
+}
+
+/* The iteration in FindMp stops with an error of the order meps. Where it
+ * ends depends on the path (number of steps, bisections), so the error
+ * changes in jumps when the curve changes. A finite difference Jacobian of
+ * e.g. the IEC 60891 translation samples these jumps. Here the result is
+ * solved to machine precision within a few meps, which makes it a smooth
+ * function of the curve. If there is no sign change of dP the result is kept. */
+static double PolishMp(double v, double vmin, double vmax, mpctx *C, MODELSET *S)
+{
+	double a, b, fa, fb, r;
+	a=v-4*S->meps;
+	b=v+4*S->meps;
+	if (a<vmin)
+		a=vmin;
+	if (b>vmax)
+		b=vmax;
+	if (!(b>a))
+		return v;
+	if (!(MpSlope(a, C, &fa)&&MpSlope(b, C, &fb)))
+		return v;
+	if ((fa<0)||(fb>0)) // no maximum in the bracket
+		return v;
+	if (RootIllinois(a, fa, b, fb, &MpSlope, C, &r))
+		return r;
+	return v;
+}
+
 point FindMp(point off, void * pars, point (*model)(double, point *, void *), MODELSET *S)
 {
 	double vmin=0, vmax=1, v, vn=0.5, dP;
 	point p, dp;
+	mpctx C;
 	int iter=0;
 	// offset voltage and current can be used to determine quasi mpp's
 	do
@@ -368,6 +463,10 @@ point FindMp(point off, void * pars, point (*model)(double, point *, void *), MO
 		v=(vmin+vmax)/2;
 	else
 		v=vn;
+	C.off=off;
+	C.pars=pars;
+	C.model=model;
+	v=PolishMp(v, vmin, vmax, &C, S);
 	return model(v,NULL,pars);	
 }
 

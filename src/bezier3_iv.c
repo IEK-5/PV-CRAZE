@@ -440,6 +440,48 @@ int Monotone(double x0, double x1, double x2, double x3, double *E)
 }
 
 
+typedef struct {
+	double *x, *y, dy0, dy1, dyc;
+} controllctx;
+
+/* slope error at the central point of a sparse section for a given t.
+ * Returns 0 where the section is not a valid candidate, i.e. where the
+ * handles would point the wrong way (SetControll takes their absolute value,
+ * so the curve does not pass through the central point) or where the section
+ * is not monotone. */
+static int ControllSlope(double t, void *ctx, double *f)
+{
+	const controllctx *C=(const controllctx *)ctx;
+	double a, b, E;
+	double *x=C->x, *y=C->y;
+	ControllAB(t, x[0], x[6], y[0], y[6], 1.0, 1.0, C->dy0, C->dy1, x[3], y[3], &a, &b);
+	if ((a<0)||(b<0))
+		return 0;
+	SetControll(t, x, y, C->dy0, C->dy1);
+	if (!((Monotone(x[0], x[1], x[5], x[6], &E))&&(Monotone(y[0], y[1], y[5], y[6], &E))))
+		return 0;
+	(*f)=B3_init_velocity(t, y)/B3_init_velocity(t, x)-C->dyc;
+	return isfinite(*f);
+}
+
+/* Polish the result of the search in FitControll. The search compares errors,
+ * so its result lies on a grid of width ~fiteps and jumps when the input
+ * changes. That makes the PV-Bezier a staircase function of the ESP and spoils
+ * finite difference Jacobians (e.g. of the IEC 60891 translation).
+ * Usually the optimum is a root of the slope error, then we solve it to
+ * machine precision in the final bracket, which gives a smooth function of
+ * the input. Otherwise topt is kept. */
+static double PolishControll(double ta, double tb, double topt, double *x, double *y, double dy0, double dy1, double dyc)
+{
+	controllctx C={x, y, dy0, dy1, dyc};
+	double fa, fb, t;
+	if (!(ControllSlope(ta, &C, &fa)&&ControllSlope(tb, &C, &fb)))
+		return topt;
+	if (RootIllinois(ta, fa, tb, fb, &ControllSlope, &C, &t))
+		return t;
+	return topt;
+}
+
 #define CEPS 1e-6 // this is a bit ugly, This value puts more weight on hitting the correct coordinate than to get the derivative right
 				  // I hope the exact value is not all that important as we do a correction anyway afterwards but it is a problem when the coordinate shifts alot
 				  // it makes for funky interpollations
@@ -548,6 +590,7 @@ double FitControll(double *x, double *y, double dy0, double dy1, double dyc, MOD
 		}
 	}
 
+	t=PolishControll(tmin, tmax, topt, x, y, dy0, dy1, dyc);
 	SetControll(t, x, y, dy0, dy1);
 	
 	if (!((Monotone(x[0], x[1], x[5], x[6], NULL))&&(Monotone(y[0], y[1], y[5], y[6], NULL))))

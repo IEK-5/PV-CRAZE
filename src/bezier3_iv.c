@@ -31,6 +31,7 @@
 #include "curve.h"
 #include "fitmodels.h"
 #include "curvemodel.h"
+#include "spline_iv.h"
 // internal struct
 typedef struct {
 	double V[13];
@@ -439,6 +440,48 @@ int Monotone(double x0, double x1, double x2, double x3, double *E)
 }
 
 
+typedef struct {
+	double *x, *y, dy0, dy1, dyc;
+} controllctx;
+
+/* slope error at the central point of a sparse section for a given t.
+ * Returns 0 where the section is not a valid candidate, i.e. where the
+ * handles would point the wrong way (SetControll takes their absolute value,
+ * so the curve does not pass through the central point) or where the section
+ * is not monotone. */
+static int ControllSlope(double t, void *ctx, double *f)
+{
+	const controllctx *C=(const controllctx *)ctx;
+	double a, b, E;
+	double *x=C->x, *y=C->y;
+	ControllAB(t, x[0], x[6], y[0], y[6], 1.0, 1.0, C->dy0, C->dy1, x[3], y[3], &a, &b);
+	if ((a<0)||(b<0))
+		return 0;
+	SetControll(t, x, y, C->dy0, C->dy1);
+	if (!((Monotone(x[0], x[1], x[5], x[6], &E))&&(Monotone(y[0], y[1], y[5], y[6], &E))))
+		return 0;
+	(*f)=B3_init_velocity(t, y)/B3_init_velocity(t, x)-C->dyc;
+	return isfinite(*f);
+}
+
+/* Polish the result of the search in FitControll. The search compares errors,
+ * so its result lies on a grid of width ~fiteps and jumps when the input
+ * changes. That makes the PV-Bezier a staircase function of the ESP and spoils
+ * finite difference Jacobians (e.g. of the IEC 60891 translation).
+ * Usually the optimum is a root of the slope error, then we solve it to
+ * machine precision in the final bracket, which gives a smooth function of
+ * the input. Otherwise topt is kept. */
+static double PolishControll(double ta, double tb, double topt, double *x, double *y, double dy0, double dy1, double dyc)
+{
+	controllctx C={x, y, dy0, dy1, dyc};
+	double fa, fb, t;
+	if (!(ControllSlope(ta, &C, &fa)&&ControllSlope(tb, &C, &fb)))
+		return topt;
+	if (RootIllinois(ta, fa, tb, fb, &ControllSlope, &C, &t))
+		return t;
+	return topt;
+}
+
 #define CEPS 1e-6 // this is a bit ugly, This value puts more weight on hitting the correct coordinate than to get the derivative right
 				  // I hope the exact value is not all that important as we do a correction anyway afterwards but it is a problem when the coordinate shifts alot
 				  // it makes for funky interpollations
@@ -547,6 +590,7 @@ double FitControll(double *x, double *y, double dy0, double dy1, double dyc, MOD
 		}
 	}
 
+	t=PolishControll(tmin, tmax, topt, x, y, dy0, dy1, dyc);
 	SetControll(t, x, y, dy0, dy1);
 	
 	if (!((Monotone(x[0], x[1], x[5], x[6], NULL))&&(Monotone(y[0], y[1], y[5], y[6], NULL))))
@@ -609,7 +653,44 @@ void MonotonizeSection(double *x, double *y)
 		y[2]=y[3]+t*(y[2]-y[3]);
 	}
 }
-void SplitSection(double *x, double *y, double dyc, double t)
+/* Keep the controll points of a section inside the triangle spanned by the two
+ * end tangents (only if the tangents intersect within the section).
+ * This is applied to the sections adjacent to the mpp only: limiting the
+ * sections towards sc and oc as well made the fit to measured IV curves
+ * noticeably worse while those sections do not cause the mpp kink.
+ * The distance of each controll point to its knot is limited to lie between
+ * TRI_FMIN and 1 times the distance of the knot to the tangent intersection.
+ * The upper limit ensures the section is monotone and does not cross its end
+ * tangents, i.e. around the mpp the power does not exceed Pmpp. The lower limit
+ * prevents degenerate (zero length) handles which lead to kinks.
+ * Only the handle lengths change, the knots and slopes remain as they are. */
+#define TRI_FMIN 0.3
+void TriangleSection(double *x, double *y, double s0, double s3)
+{
+	double xi, L0, L3, h0, h3;
+	h0=x[1]-x[0];
+	h3=x[3]-x[2];
+	if (s0==s3)
+		return;
+	// voltage of the tangent intersection
+	xi=((y[3]-s3*x[3])-(y[0]-s0*x[0]))/(s0-s3);
+	if ((xi<=x[0])||(xi>=x[3]))
+		return;
+	L0=xi-x[0];
+	L3=x[3]-xi;
+	if (h0>L0) h0=L0;
+	if (h0<TRI_FMIN*L0) h0=TRI_FMIN*L0;
+	if (h3>L3) h3=L3;
+	if (h3<TRI_FMIN*L3) h3=TRI_FMIN*L3;
+	x[1]=x[0]+h0;
+	y[1]=y[0]+h0*s0;
+	x[2]=x[3]-h3;
+	y[2]=y[3]-h3*s3;
+}
+
+/* mpp_at_end: 1 if the section ends at the mpp (the sc->mpp half),
+ *             0 if it starts at the mpp (the mpp->oc half) */
+void SplitSection(double *x, double *y, double dy0, double dyc, double dy1, double t, int mpp_at_end)
 {
 	// split bezier section of 4 points in 2 connected sections of 7 points total (one point is shared by both)
 	double m1x, m2x, m3x, m1y, m2y, m3y;
@@ -647,6 +728,12 @@ void SplitSection(double *x, double *y, double dyc, double t)
 	x[4]=x[3]+sqrt(l)/sqrt(dyc*dyc+1);
 	y[4]=y[3]+dyc*sqrt(l)/sqrt(dyc*dyc+1);
 	
+	// keep the controll points of the sub-section at the mpp within its tangent triangle
+	if (mpp_at_end)
+		TriangleSection(x+3, y+3, dyc, dy1);
+	else
+		TriangleSection(x, y, dy0, dyc);
+	
 	// ensure monotone interpolation
 	if (ParMono(x[0], y[0], (y[1]-y[0])/(x[1]-x[0]), x[3], y[3], dyc))
 		MonotonizeSection(x, y);
@@ -664,8 +751,8 @@ B3pars InitFitBezier(B3pars B, double dIsc, double dIqmp1, double dImpp, double 
 	// first we fit the controll points
 	t1=FitControll(B.V, B.I, dIsc, dImpp, dIqmp1,S);
 	t2=FitControll(B.V+6, B.I+6, dImpp, dIoc, dIqmp2,S);
-	SplitSection(B.V, B.I, dIqmp1, t1);
-	SplitSection(B.V+6, B.I+6, dIqmp2, t2);
+	SplitSection(B.V, B.I, dIsc, dIqmp1, dImpp, t1, 1);
+	SplitSection(B.V+6, B.I+6, dImpp, dIqmp2, dIoc, t2, 0);
 	return B;
 }
 
@@ -690,4 +777,63 @@ generic_pars B3Fit(curvepars par, curve C, double *Efit, MODELSET *S)
 	Sd=Generic2B3Pars(P,S);
 	(*Efit)=B3RMSErr_i(Sd, C,S);
 	return P;
+}
+
+
+/* IEC60891 procedure 2 translation of a PV-Bézier
+ * For a given curve the IEC60891 translation maps every point (V1,I1) with an
+ * affine map (I2 is proportional to I1 and V2 is linear in V1 and I1).
+ * Bézier curves are invariant under affine maps, i.e. mapping the controll
+ * points translates the curve exactly. The PV-spline in contrast is a
+ * function I(V), which is not closed under the shear of the V-axis by the
+ * series resistance term, so there only the knots and slopes are translated. */
+static generic_pars B3SolPars(B3pars *B, MODELSET *S)
+{
+	generic_pars P;
+	curvepars par;
+	par=SolPar(B->V[12], B->I[0], (void *) B, &B3_i, S);
+	if ((B->V[0]>0)&&(B->V[1]>B->V[0]))
+	{
+		/* The translated curve starts at V>0. The solver only searches
+		 * 0<=t<=1, so extrapolate linearly to short circuit here, as B3_i
+		 * does for t<0 */
+		double s=(B->I[1]-B->I[0])/(B->V[1]-B->V[0]);
+		par.Isc=B->I[0]-s*B->V[0];
+		par.Gsc=-s;
+	}
+	P.TYPE=M_PVBEZIER;
+	P.pars[0]=par.Voc;
+	P.pars[1]=par.Isc;
+	P.pars[2]=par.Vmpp;
+	P.pars[3]=par.Impp;
+	P.pars[4]=par.Vqmp1;
+	P.pars[5]=par.Iqmp1;
+	P.pars[6]=par.Vqmp2;
+	P.pars[7]=par.Iqmp2;
+	P.pars[8]=par.Gsc;
+	P.pars[9]=par.Roc;
+	return P;
+}
+
+generic_pars B3IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S)
+{
+	B3pars B;
+	double Voc1;
+	int i;
+	B=Generic2B3Pars(P,S);
+	Voc1=B.V[12];
+	for (i=0;i<13;i++)
+		IEC_v2(B.V[i], B.I[i], Voc1, alpha, beta, a, Rs, kappa, T1, T2, G1, G2, B.V+i, B.I+i);
+	return B3SolPars(&B, S);
+}
+
+generic_pars B3IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
+{
+	B3pars B;
+	double dIdV;
+	int i;
+	B=Generic2B3Pars(P,S);
+	for (i=0;i<13;i++)
+		IEC_v3(B.V[i], Vocstd, B.I[i], 0, G1, G2, Gstd, T1, T2, Tstd, alpha, beta, B1, B2, Rs, kappa, rho, B.V+i, B.I+i, &dIdV);
+	return B3SolPars(&B, S);
 }

@@ -1,0 +1,485 @@
+"""Behaviour of the Python API: input forms, errors, single vs batch."""
+
+import inspect
+
+import numpy as np
+import pytest
+
+import pvcraze as pc
+
+
+# ---------------------------------------------------------------- analyze
+def test_analyze_input_forms_agree(diode_curve):
+    V, I = diode_curve
+    iv = np.column_stack([V, I])
+    a = pc.analyze(V, I)
+    b = pc.analyze(iv)
+    c = pc.analyze(iv.tolist())
+    d = pc.analyze([iv, iv[::2]])
+    e = pc.analyze([V, V[::2]], [I, I[::2]])
+    f = pc.analyze((iv.astype(np.float32),))
+    assert not a.is_batch and not b.is_batch and not c.is_batch
+    assert a.esp == b.esp == c.esp
+    assert d.is_batch and len(d) == 2
+    assert d.esp[0] == a.esp
+    np.testing.assert_array_equal(np.asarray(d.esp), np.asarray(e.esp))
+    assert f.is_batch and abs(f.esp[0].voc - a.esp.voc) < 1e-4
+
+
+def test_analyze_single_result_is_scalar(diode_curve):
+    res = pc.analyze(*diode_curve, models="PV-Bezier")
+    assert isinstance(res.esp.voc, float)
+    assert isinstance(res.flags, int)
+    assert res.ok is True
+    assert res.flag() == pc.Flag(0) and res.flag().messages == []
+    fit = res.fits["PV-Bezier"]
+    assert isinstance(fit.error, float) and fit.error < 1e-2
+    assert not fit.params.is_batch
+    assert 0.55 < res.esp.voc < 0.62 and 0.7 < res.esp.ff < 0.85
+
+
+def test_analyze_int_curves_are_converted():
+    V = np.arange(0, 60)
+    I = (100 - np.exp(V / 12.0)).astype(np.int64)
+    res = pc.analyze(V, I)
+    assert res.esp.voc > 50
+
+
+def test_analyze_empty_batch():
+    res = pc.analyze([], models="PV-Bezier")
+    assert res.is_batch and len(res) == 0
+    assert res.fits["PV-Bezier"].params.to_array().shape == (0, 10)
+
+
+def test_fits_lookup_is_forgiving(diode_curve):
+    res = pc.analyze(*diode_curve, models=[pc.Model.PV_BEZIER, "diode"])
+    assert list(res.fits) == ["PV-Bezier", "Diode"]
+    assert res.fits["pv_bezier"] is res.fits[pc.Model.PV_BEZIER]
+    assert "DIODE" in res.fits and "KH" not in res.fits
+
+
+@pytest.mark.parametrize(
+    "kwargs, exc",
+    [
+        ({"models": "Bezier"}, ValueError),
+        ({"models": [3]}, TypeError),
+        ({"models": ["PV-Bezier", "pv-bezier"]}, ValueError),
+        ({"mpp_method": "magic"}, ValueError),
+        ({"mpp_dv": 1.5}, ValueError),
+        ({"resample": 1}, ValueError),
+        ({"identical_eps": -1.0}, ValueError),
+    ],
+)
+def test_analyze_rejects_bad_options(diode_curve, kwargs, exc):
+    with pytest.raises(exc):
+        pc.analyze(*diode_curve, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "curves",
+    [np.ones((5, 3)), np.ones(5), "iv.csv", [np.ones((5, 2)), np.ones((5, 3))], np.ones((4, 2), dtype=complex)],
+)
+def test_analyze_rejects_bad_curves(curves):
+    with pytest.raises((TypeError, ValueError)):
+        pc.analyze(curves)
+
+
+def test_analyze_hints_at_v_i_form(diode_curve):
+    with pytest.raises(ValueError, match=r"analyze\(V, I\)"):
+        pc.analyze(list(diode_curve))
+
+
+def test_unknown_model_error_lists_models():
+    with pytest.raises(ValueError, match="PV-Bezier"):
+        pc.Model.lookup("bezier")
+
+
+def test_mpp_methods(diode_curve):
+    vocs = [pc.analyze(*diode_curve, mpp_method=m).esp.vmpp for m in ("savgol", "robust", "parametric", "fast")]
+    assert np.ptp(vocs) < 5e-3
+
+
+def test_signatures_are_introspectable():
+    sig = inspect.signature(pc.analyze)
+    assert "models" in sig.parameters and "mpp_method" in sig.parameters
+    assert pc.analyze.__doc__ and "Parameters" in pc.analyze.__doc__
+
+
+# ---------------------------------------------------------------- ESP
+def test_esp_construction_and_fields():
+    e = pc.ESP(voc=0.6, isc=0.035, vmpp=0.5, impp=0.032, vqmp_minus=0.42, iqmp_minus=0.034,
+               vqmp_plus=0.56, iqmp_plus=0.022, gsc=1.7e-3, roc=0.96)
+    assert not e.is_batch and e.voc == 0.6
+    assert e.pmpp == pytest.approx(0.016) and e.ff == pytest.approx(0.016 / 0.021)
+    assert pc.ESP.from_array(np.asarray(e)) == e
+    assert pc.ESP.from_dict(e.to_dict()) == e
+    with pytest.raises(AttributeError):
+        e.voc = 1.0
+    with pytest.raises(TypeError):
+        len(e)
+    b = pc.ESP.concat([e, e, e])
+    assert b.is_batch and len(b) == 3 and b[1] == e and len(b[b.voc > 0]) == 3
+    assert [x == e for x in b] == [True] * 3
+    arr = np.asarray(b)
+    assert arr.shape == (3, 10) and not arr.flags.writeable
+    assert b.to_array().flags.writeable
+
+
+def test_esp_broadcasts_fields():
+    e = pc.ESP(voc=[0.6, 0.7], isc=0.035, vmpp=0.5, impp=0.032, vqmp_minus=0.42,
+               iqmp_minus=0.034, vqmp_plus=0.56, iqmp_plus=0.022, gsc=1.7e-3, roc=0.96)
+    assert e.is_batch and list(e.voc) == [0.6, 0.7] and list(e.isc) == [0.035, 0.035]
+
+
+def test_esp_from_array_validates():
+    with pytest.raises(ValueError):
+        pc.ESP.from_array(np.ones((3, 9)))
+
+
+def test_dataframes(diode_curve):
+    pd = pytest.importorskip("pandas")
+    res = pc.analyze([np.column_stack(diode_curve)] * 3, models="PV-Bezier")
+    df = res.to_dataframe()
+    assert list(df.columns[:10]) == list(pc.ESP.FIELDS)
+    assert {"flags", "ok", "error_PV-Bezier"} <= set(df.columns) and len(df) == 3
+    assert pc.ESP.from_dataframe(df) == res.esp
+    assert list(res.fits["PV-Bezier"].params.to_dataframe().columns) == list(pc.ESP.FIELDS)
+    assert isinstance(df, pd.DataFrame)
+
+
+# ---------------------------------------------------------------- models
+def test_model_lookup_and_params():
+    assert pc.Model("pv bezier") is pc.Model.PV_BEZIER
+    assert pc.Model.DIODE == "Diode" and str(pc.Model.DIODE) == "Diode"
+    assert pc.Model.DIODE.param_names == ("i0", "nkt", "iph", "rs", "rsh")
+    assert pc.Model.PV_BEZIER.param_names == pc.ESP.FIELDS
+    assert pc.Model.PV_BEZIER.param_labels[4:8] == ("Vqmp-", "Iqmp-", "Vqmp+", "Iqmp+")
+
+
+def test_model_params_named_and_evaluation():
+    p = pc.ModelParams("Diode", i0=1e-10, nkt=0.03, iph=0.035, rs=0.1, rsh=700)
+    assert p.rs == 0.1 and "rsh" in dir(p)
+    assert isinstance(p.iv(0.3), float)
+    assert p.iv(np.zeros((2, 3))).shape == (2, 3)
+    assert p.iv(0.0) == pytest.approx(0.035, rel=1e-2)
+    assert p.vi(p.iv(0.45)) == pytest.approx(0.45, abs=1e-6)
+    c = p.curve(50)
+    assert c.ndim == 2 and c.shape[1] == 2
+    assert p.esp().voc == pytest.approx(p.vi(0.0), rel=1e-6)
+    assert p.rmse(c) < 1e-6
+    measured = c + [0.0, 1e-4]
+    d = p.distance(measured)
+    assert d.shape == c.shape and np.all(d[:, 1] >= 0)
+    assert np.sqrt(np.mean(d[:, 1] ** 2)) == pytest.approx(p.rmse(measured), rel=1e-6)
+    with pytest.raises(AttributeError, match="available"):
+        p.voc
+    with pytest.raises(TypeError, match="missing"):
+        pc.ModelParams("Diode", i0=1e-10)
+    with pytest.raises(ValueError, match="5 parameters"):
+        pc.ModelParams("Diode", np.ones(10))
+
+
+def test_model_params_batch_broadcasting():
+    p = pc.ModelParams("Diode", i0=[1e-10, 2e-10], nkt=0.03, iph=0.035, rs=0.1, rsh=700)
+    assert p.is_batch and len(p) == 2
+    assert p.iv(0.3).shape == (2,)
+    assert p.iv(np.linspace(0, 0.5, 7)).shape == (2, 7)
+    assert p.iv(np.array([[0.1], [0.2]])).shape == (2, 1)
+    with pytest.raises(ValueError):
+        p.iv(np.zeros((3, 4)))
+    curves = p.curve(30)
+    assert isinstance(curves, list) and len(curves) == 2
+    assert p.rmse(curves).shape == (2,)
+    with pytest.raises(ValueError):
+        p.rmse(curves[0])
+
+
+def test_fit_model_single_and_batch(gt_data):
+    _, _, esp = gt_data
+    batch = pc.fit_model(esp, "KH")
+    assert batch.params.is_batch and batch.error.shape == (len(esp),)
+    single = pc.ESP.from_array(esp[3]).fit("KH")
+    assert not single.params.is_batch and isinstance(single.error, float)
+    assert single.params.to_array() == pytest.approx(batch.params[3].to_array())
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"population": 5}, {"max_iter": 1.5}, {"tol": 1.0}, {"refine": True}],
+)
+def test_fitspec_validation(kwargs):
+    with pytest.raises(ValueError):
+        pc.FitSpec("Diode", **kwargs)
+
+
+def test_fitspec_spec_string():
+    s = pc.FitSpec("diode", population=200, max_iter=4000, refine_tol=6e-4)._spec_string()
+    assert s == "model(Diode) fitit(4000) npop(200) oeps(0.0006)"
+
+
+# ---------------------------------------------------------------- flags
+def test_flag_helpers():
+    f = pc.Flag.MULTIPLEMPP | pc.Flag.NOMPP
+    assert f.has_error and f.has_warning
+    assert f.errors == pc.Flag.NOMPP and f.warnings == pc.Flag.MULTIPLEMPP
+    assert f.messages == ["No power maximum", "more than one power maximum"]
+    assert pc.describe_flags(int(f)) == f.messages
+    assert pc.ERROR_MASK & pc.WARNING_MASK == 0
+
+
+def test_flag_numbers_are_stable():
+    # flag codes are stored by users; they must never change
+    assert pc.Flag.MULTIPLEMPP == 1 << 0
+    assert pc.Flag.IV_NOT_MONO == 1 << 6
+    assert pc.Flag.INSUFFIVDATA == 1 << 7
+    assert pc.Flag.INSUFF_I_RANGE == 1 << 8
+    assert pc.Flag.NOMPP == 1 << 11
+    assert pc.Flag.INSUFF_ISC_RANGE == 1 << 28
+    assert pc.Flag.OUTLIERS == 1 << 29 and not pc.Flag.OUTLIERS.has_error
+    assert pc.Flag.IV_STEPS == 1 << 30 and not pc.Flag.IV_STEPS.has_error
+    assert pc.Flag.NOISY_IV == 1 << 31 and pc.Flag.NOISY_IV.has_error
+
+
+# ---------------------------------------------------------------- data quality
+def _diode(V, iph=0.035):
+    return iph - 1e-10 * (np.exp(V / 0.03) - 1) - V / 700
+
+
+def test_isolated_outlier_is_removed(diode_curve):
+    V, I = diode_curve
+    I = I.copy()
+    clean = pc.analyze(V, I, models="PV-Bezier")
+    I[40] += 0.3 * I.max()                # one spike on the plateau
+    res = pc.analyze(V, I, models="PV-Bezier")
+    assert res.flag() == pc.Flag.OUTLIERS and res.ok
+    np.testing.assert_allclose(np.asarray(res.esp)[:8], np.asarray(clean.esp)[:8], rtol=1e-3)
+    assert res.fits["PV-Bezier"].error < 2 * clean.fits["PV-Bezier"].error
+    raw = pc.analyze(V, I, models="PV-Bezier", spike_filter=False)
+    assert pc.Flag.OUTLIERS in raw.flag()   # detected without the filter too
+    assert raw.fits["PV-Bezier"].error > 5 * res.fits["PV-Bezier"].error
+
+
+def test_noisy_curve_is_an_error(diode_curve):
+    V, I = diode_curve
+    rng = np.random.default_rng(0)
+    I = np.where(rng.random(len(I)) < 0.3, rng.random(len(I)) * I.max(), I)
+    res = pc.analyze(V, I)
+    assert pc.Flag.NOISY_IV in res.flag() and not res.ok
+
+
+def test_stepped_curve_is_flagged():
+    # a shaded substring behind a bypass diode: full current up to the knee of
+    # the unshaded part, then the lower current of the shaded part
+    V = np.linspace(0, 1.2, 120)
+    I = np.maximum(_diode(V), _diode(V - 0.55, iph=0.021))
+    res = pc.analyze(V, I, models="PV-Bezier")
+    assert pc.Flag.IV_STEPS in res.flag()
+    assert res.ok                          # a warning: the ESP are still determined
+    plain = pc.analyze(V, _diode(V))
+    assert pc.Flag.IV_STEPS not in plain.flag()
+
+
+def test_clean_curves_raise_no_quality_flags(measured_curves):
+    res = pc.analyze(measured_curves[:200])
+    quality = pc.Flag.OUTLIERS | pc.Flag.NOISY_IV
+    assert not any(res.flag(i) & quality for i in range(len(res)))
+
+
+# ---------------------------------------------------------------- translation
+def test_iec60891_v3_datasheet_coefficients(gt_data):
+    T, G, esp = gt_data
+    fitted = pc.iec60891.IEC60891v3.fit(esp, T, G)
+    manual = pc.iec60891.IEC60891v3(
+        alpha=fitted.alpha, beta=fitted.beta, b1=fitted.b1, b2=fitted.b2,
+        rs=fitted.rs, kappa=fitted.kappa, voc_ref=fitted.esp_ref.voc,
+    )
+    a = fitted.translate(T=60.0, G=800.0)
+    b = manual.translate(T=60.0, G=800.0, esp=fitted.esp_ref)
+    assert not a.is_batch and a == b
+    grid = fitted.translate(T=[25.0, 50.0], G=1000.0)
+    assert grid.is_batch and len(grid) == 2
+    assert grid[0].voc == pytest.approx(fitted.esp_ref.voc)
+    with pytest.raises(ValueError):
+        manual.translate(T=25.0, G=1000.0)
+    with pytest.raises(TypeError):
+        pc.iec60891.IEC60891v3(alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0)
+
+
+@pytest.mark.parametrize("model", ["PV-spline", "PV-Bezier"])
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_scalar_fast_path_matches_general_path(gt_data, version, model):
+    T, G, esp = gt_data
+    coef = pc.iec60891.fit(esp, T, G, version=version, model=model)
+    fast = coef.translate(T=40.0, G=700.0, esp=esp[5], T_from=float(T[5]), G_from=float(G[5]))
+    general = coef.translate(T=[40.0], G=[700.0], esp=esp[5:6], T_from=[T[5]], G_from=[G[5]])
+    assert not fast.is_batch and general.is_batch
+    np.testing.assert_array_equal(np.asarray(fast), np.asarray(general)[0])
+    assert not np.asarray(fast).flags.writeable
+
+
+@pytest.mark.parametrize("model", ["PV-spline", "PV-Bezier"])
+def test_rsgmod_iec60891_v3_rho0_is_the_norm(gt_data, model):
+    T, G, esp = gt_data
+    v3 = pc.iec60891.IEC60891v3.fit(esp, T, G, model=model)
+    coef = dict(alpha=v3.alpha, beta=v3.beta, b1=v3.b1, b2=v3.b2, rs=0.1, kappa=1e-3,
+                esp_ref=v3.esp_ref, model=model)
+    norm = pc.iec60891.IEC60891v3(**coef)
+    mod = pc.iec60891.RsGmodIEC60891v3(rho=0.0, **coef)
+    assert not isinstance(mod, pc.iec60891.IEC60891v3)
+    np.testing.assert_array_equal(np.asarray(mod.translate(T=T, G=G)), np.asarray(norm.translate(T=T, G=G)))
+    a = mod.translate(T=40.0, G=300.0, esp=esp[3], T_from=float(T[3]), G_from=float(G[3]))
+    b = norm.translate(T=40.0, G=300.0, esp=esp[3], T_from=float(T[3]), G_from=float(G[3]))
+    assert a == b
+    with pytest.raises(TypeError):
+        pc.iec60891.RsGmodIEC60891v3(alpha=0, beta=0, b1=0, b2=0, rs=0, kappa=0, rho=0)
+
+
+def test_rsgmod_iec60891_v3_fit_recovers_rho(gt_data):
+    T, G, esp = gt_data
+    v3 = pc.iec60891.IEC60891v3.fit(esp, T, G)
+    rs = 0.05 * v3.esp_ref.voc / v3.esp_ref.isc
+    true = pc.iec60891.RsGmodIEC60891v3(
+        alpha=v3.alpha, beta=v3.beta, b1=v3.b1, b2=v3.b2, rs=rs, kappa=1e-3 * rs, rho=-0.3 * rs,
+        esp_ref=v3.esp_ref, model="PV-Bezier",
+    )
+    data = true.translate(T=T, G=G)
+    # rho raises Rs at low irradiance
+    assert true.translate(T=25.0, G=200.0).pmpp < pc.iec60891.IEC60891v3(
+        true.alpha, true.beta, true.b1, true.b2, true.rs, true.kappa,
+        esp_ref=true.esp_ref, model="PV-Bezier").translate(T=25.0, G=200.0).pmpp
+    fit = pc.iec60891.RsGmodIEC60891v3.fit(data, T, G, model="PV-Bezier")
+    assert isinstance(fit, pc.iec60891.RsGmodIEC60891v3)
+    assert fit.rho == pytest.approx(true.rho, rel=0.05)
+    assert fit.rs == pytest.approx(true.rs, rel=0.05)
+    norm = pc.iec60891.IEC60891v3.fit(data, T, G, model="PV-Bezier")
+
+    def err(c):
+        return np.median(np.abs(np.asarray(c.translate(T=T, G=G).pmpp) / np.asarray(data.pmpp) - 1))
+    assert err(fit) < err(norm)
+
+
+def test_iec60891_translate_between_conditions(gt_data):
+    T, G, esp = gt_data
+    # v3: v2 is not invertible, translating back to the reference spreads more
+    coef = pc.iec60891.fit(esp, T, G, version=3)
+    stc = coef.translate(T=25.0, G=1000.0, esp=esp, T_from=T, G_from=G)
+    assert stc.is_batch and len(stc) == len(esp)
+    assert np.std(stc.voc) / np.mean(stc.voc) < 0.05
+    with pytest.raises(ValueError):
+        pc.iec60891.fit(esp, T, G, version=4)
+    with pytest.raises(ValueError):
+        coef.translate(T=[1.0, 2.0, 3.0], G=1000.0, esp=esp[:2], T_from=25.0, G_from=1000.0)
+
+
+def test_iec60891_model_option(gt_data):
+    T, G, esp = gt_data
+    coef = pc.iec60891.fit(esp, T, G, version=2, max_points=10, model="pv-bezier")
+    assert coef.model is pc.Model.PV_BEZIER
+    assert pc.iec60891.fit(esp, T, G, version=2, max_points=10).model is pc.Model.PV_SPLINE
+    other = pc.iec60891.IEC60891v2(coef.alpha, coef.beta, coef.a, coef.rs, coef.kappa, esp_ref=coef.esp_ref, model="PV_SPLINE")
+    assert other.model is pc.Model.PV_SPLINE and other != coef
+    a = coef.translate(T=50.0, G=500.0)
+    b = other.translate(T=50.0, G=500.0)
+    assert a.voc == pytest.approx(b.voc) and a.impp != b.impp
+    with pytest.raises(ValueError, match="PV-Bezier"):
+        pc.iec60891.IEC60891v2(0, 0, 0, 0, 0, model="Diode")
+    with pytest.raises(ValueError):
+        pc.iec60891.fit(esp, T, G, model="KH")
+
+
+@pytest.mark.parametrize("t2, g2", [(55.0, 300.0), (10.0, 1200.0)])
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_bezier_translation_is_exact(gt_data, version, t2, g2):
+    # The IEC 60891 map of the curve points is affine and a Bezier curve is
+    # invariant under affine maps: the translated ESP must describe the
+    # point-wise translated PV-Bezier curve.
+    T, G, esp = gt_data
+    ref = pc.ESP.from_array(esp[len(esp) // 2])
+    alpha, beta, b1, rs, kappa = 5e-4, -3.5e-3, 0.06, 0.8, 0.004
+    if version == 2:
+        coef = pc.iec60891.IEC60891v2(alpha, beta, b1, rs, kappa, esp_ref=ref, model="PV-Bezier")
+    else:
+        coef = pc.iec60891.IEC60891v3(alpha, beta, b1, 0.0, rs, kappa, esp_ref=ref, model="PV-Bezier")
+    out = coef.translate(T=t2, G=g2)
+    c = pc.ModelParams(pc.Model.PV_BEZIER, np.asarray(ref)).curve(20000)
+    V, I = c[:, 0], c[:, 1]
+    dt, gr = t2 - 25.0, g2 / 1000.0
+    if version == 2:
+        I2 = I * (1 + alpha * dt) * gr
+        V2 = V + ref.voc * (beta * dt + b1 * np.log(gr)) - rs * (I2 - I) - kappa * I2 * dt
+    else:
+        f2 = b1 * np.log(1 / gr) + 1
+        I2 = I * gr * (1 + alpha * dt)
+        V2 = V - rs * (I2 - I) - kappa * I2 * dt + ref.voc * (beta * f2 * dt + 1 / f2 - 1)
+    assert out.voc == pytest.approx(np.interp(0.0, -I2, V2), rel=1e-6)
+    if V2[0] > 0:  # starts right of short circuit: linear extrapolation
+        isc = I2[0] - V2[0] * (I2[1] - I2[0]) / (V2[1] - V2[0])
+    else:
+        isc = np.interp(0.0, V2, I2)
+    assert out.isc == pytest.approx(isc, rel=1e-6)
+    assert out.vmpp * out.impp == pytest.approx(np.max(V2 * I2), rel=1e-6)
+
+
+def test_iec60891_bezier_negative_gsc_mpp():
+    # A perovskite module ESP with a slightly negative Gsc (the current rises
+    # with voltage near short circuit), translated to low irradiance with a
+    # large series resistance. The mpp search used to get stuck at the start of
+    # the translated curve (Vmpp ~ 3 V).
+    esp = pc.ESP.from_array([84.1345, 1.74376, 63.0823, 1.54458, 46.6489, 1.70286,
+                             75.3669, 0.95064, -0.000322595, 7.2531])
+    coef = pc.iec60891.IEC60891v3(-0.00134593, -0.00101754, 0.0315336, 0.00163605, 6.47686,
+                                  -0.0932635, voc_ref=86.3425, model="PV-Bezier")
+    out = coef.translate(T=25.5, G=187.3, esp=esp, T_from=42.5, G_from=959.0)
+    c = pc.ModelParams(pc.Model.PV_BEZIER, np.asarray(esp)).curve(20000)
+    V, I = c[:, 0], c[:, 1]
+    k = (187.3 / 959.0) * (1 - 0.00134593 * 0.5) / (1 - 0.00134593 * 17.5)
+    I2 = I * k
+    ln = lambda g: np.log(1000.0 / g)
+    f = lambda g: (0.00163605 * ln(g) + 0.0315336) * ln(g) + 1
+    rs1 = 6.47686 - 0.0932635 * 17.5
+    V2 = (V - rs1 * (I2 - I) + 0.0932635 * I2 * (25.5 - 42.5)
+          + 86.3425 * (-0.00101754 * (f(187.3) * 0.5 - f(959.0) * 17.5) + 1 / f(187.3) - 1 / f(959.0)))
+    assert out.vmpp * out.impp == pytest.approx(np.max(V2 * I2), rel=1e-6)
+    assert out.vmpp == pytest.approx(V2[np.argmax(V2 * I2)], rel=1e-3)
+
+
+@pytest.mark.parametrize("version", [2, 3])
+def test_iec60891_fit_skips_unusable_curves(gt_data, version):
+    T, G, esp = gt_data
+    bad = esp.copy()
+    bad[3] = np.nan
+    bad[7, 2] = -1.0
+    a = pc.iec60891.fit(esp[[i for i in range(len(esp)) if i not in (3, 7)]],
+                        np.delete(T, [3, 7]), np.delete(G, [3, 7]), version=version)
+    b = pc.iec60891.fit(bad, T, G, version=version)
+    assert a == b and a.esp_ref == b.esp_ref
+    with pytest.raises(RuntimeError):
+        pc.iec60891.fit(np.full((5, 10), np.nan), T[:5], G[:5], version=version)
+
+
+def test_diode_gt_at(gt_data):
+    T, G, esp = gt_data
+    gt = pc.diode_gt.fit(esp, T, G, max_points=10)
+    p = gt.at(25.0, 1000.0)
+    assert p.model is pc.Model.DIODE and not p.is_batch
+    assert p.to_array() == pytest.approx(gt.params.to_array(), rel=1e-9)
+    assert gt.at(T, G).is_batch
+    with pytest.raises(ValueError):
+        gt.at(-300.0, 1000.0)
+    with pytest.raises(TypeError):
+        pc.diode_gt.DiodeGT(pc.ModelParams("KH", np.ones(4)), 0.0, 0.0)
+
+
+# ---------------------------------------------------------------- verbosity
+def test_quiet_by_default_and_verbose_context(capfd, diode_curve):
+    assert not any(pc.get_verbosity().values())
+    pc.analyze(*diode_curve)
+    assert capfd.readouterr().out == ""
+    with pc.verbose(progress=False):
+        assert pc.get_verbosity()["report"]
+        pc.analyze(*diode_curve)
+    assert "PV-CRAZE" in capfd.readouterr().out
+    assert not any(pc.get_verbosity().values())
+    prev = pc.set_verbosity(timing=True)
+    assert prev == {"timing": False, "report": False, "progress": False, "header": False}
+    pc.set_verbosity()

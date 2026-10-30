@@ -30,5 +30,6 @@ curve 		DistCurve		(double Voc, double Isc, void * pars, point (*model)(double, 
 double 		RMSErr			(double Voc, double Isc, void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S);
 double 		Solve_IV		(double V, double Voc, point *dp, void * pars, point (*model)(double, point *, void *), MODELSET *S);
 double 		Solve_VI		(double I, double Isc,  point *dp, void * pars, point (*model)(double, point *, void *), MODELSET *S);
+int 		RootIllinois	(double a, double fa, double b, double fb, int (*f)(double, void *, double *), void *ctx, double *root);
 point 		FindMp			(point off, void * pars, point (*model)(double, point *, void *), MODELSET *S);
 curvepars 	SolPar			(double Voc, double Isc, void * pars, point (*model)(double, point *, void *), MODELSET *S);

@@ -34,6 +34,8 @@
 #include "curvemodel.h"
 #include "neldermead.h"
 #include "diffevol.h"
+#include "spline_iv.h"
+#include "bezier3_iv.h"
 
 
 // internal struct
@@ -290,20 +292,20 @@ generic_pars Spline2GenericPars(splinepars S, MODEL_TYPE T)
 
 
 /* return the index of the largest V value below V */
-int binsearch(double V, splinepars par)
+static int binsearch(double V, const splinepars *par)
 {
 	int i, imin, imax;
 	
-	if (par.V[0]>V)
+	if (par->V[0]>V)
 		return -1;
-	if (par.V[par.N-1]<V)
-		return par.N-1;
+	if (par->V[par->N-1]<V)
+		return par->N-1;
 	imin=0;
-	imax=par.N-1;
+	imax=par->N-1;
 	while (imax-imin>1)
 	{
 		i=(imin+imax)/2;
-		if (par.V[i]<V)
+		if (par->V[i]<V)
 			imin=i;
 		else
 			imax=i;
@@ -311,7 +313,7 @@ int binsearch(double V, splinepars par)
 	return imin;	
 }
 
-double Spline_I(double V, double *dI, splinepars par)
+static double Spline_I(double V, double *dI, const splinepars *par)
 {
 	int i;
 	double vmin, vplus, h, t;
@@ -322,22 +324,22 @@ double Spline_I(double V, double *dI, splinepars par)
 	{
 		/* linear extrapolation */
 		if (dI)
-			(*dI)=par.dI[0];
-		return par.I[0]+(V-par.V[0])*par.dI[0];
+			(*dI)=par->dI[0];
+		return par->I[0]+(V-par->V[0])*par->dI[0];
 	}
-	if (i==par.N-1)
+	if (i==par->N-1)
 	{
 		/* linear extrapolation */
 		if (dI)
-			(*dI)=par.dI[par.N-1];
-		return par.I[par.N-1]+(V-par.V[par.N-1])*par.dI[par.N-1];
+			(*dI)=par->dI[par->N-1];
+		return par->I[par->N-1]+(V-par->V[par->N-1])*par->dI[par->N-1];
 	}
-	vmin=par.V[i];
-	vplus=par.V[i+1];
-	imin=par.I[i];
-	iplus=par.I[i+1];
-	mmin=par.dI[i];
-	mplus=par.dI[i+1];
+	vmin=par->V[i];
+	vplus=par->V[i+1];
+	imin=par->I[i];
+	iplus=par->I[i+1];
+	mmin=par->dI[i];
+	mplus=par->dI[i+1];
 	h=vplus-vmin;
 	t=(V-vmin)/h;
 	if (dI)
@@ -351,18 +353,18 @@ point splineIV_i (double t, point *dp, void *pars)
 {
 	point p;
 	double *di=NULL;
-	splinepars par;
+	const splinepars *par;
 	
 	if (dp)
 		di=&(dp->y);
-	par=*((splinepars *)pars);
-	p.x=(2*t-0.5)*par.V[par.index[4]]; // for t 0-1 we cover a bit wider voltage range to be sure
+	par=(const splinepars *)pars;
+	p.x=(2*t-0.5)*par->V[par->index[4]]; // for t 0-1 we cover a bit wider voltage range to be sure
 	p.y=Spline_I(p.x, di, par);
 	if (dp)
 	{
 		// take care of derivatives we have to compute dx/dt and dy/dt
-		dp->x=2*par.V[par.index[4]];
-		dp->y*=2*par.V[par.index[4]];
+		dp->x=2*par->V[par->index[4]];
+		dp->y*=2*par->V[par->index[4]];
 	}
 	return p;
 }
@@ -690,14 +692,24 @@ generic_pars PVSplineFit(curvepars par, curve C, double *Efit, MODELSET *S)
 #define IEC_v2_V2(V1,I1,Voc1,I2,alpha,beta,a,Rs,kappa,DT,GR) ((V1)+(Voc1)*((beta)*(DT)+(a)*log((GR)))-(Rs)*((I2)-(I1))-(kappa)*((I2)*(DT)))
 #define IEC_v2_dIdV2(dIdV1,alpha,beta,a,Rs,kappa,DT,GR) (-(dIdV1)*(GR)*((alpha)*(DT)+1)/((dIdV1)*(GR)*(DT)*((alpha)*(DT)+1)*(kappa)-1+(GR)*(Rs)*(alpha)*(dIdV1)*(DT)+((GR)-1)*(Rs)*(dIdV1)))
 
+void IEC_v2(double V1, double I1, double Voc1, double alpha, double beta, double a, double Rs, double kappa,
+            double T1, double T2, double G1, double G2, double *V2o, double *I2o)
+{
+	double DT=(T2-T1), GR=(G2/G1);
+	(*I2o)=IEC_v2_I2(I1,alpha,DT,GR);
+	(*V2o)=IEC_v2_V2(V1,I1,Voc1,(*I2o),alpha,beta,a,Rs,kappa,DT,GR);
+}
+
 generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S)
 {
 	splinepars Sp, Sn;
 	curvepars par;
 	int i;
 	double DT, GR;
+	if (P.TYPE==M_PVBEZIER)
+		return B3IEC60891_v2(P, alpha, beta, a, Rs, kappa, T1, T2, G1, G2, S);
 	Sp=Generic2SplinePars(P);
-	Sn=Generic2SplinePars(P);
+	Sn=Sp;
 	
 	DT=(T2-T1);
 	GR=(G2/G1);
@@ -723,564 +735,6 @@ generic_pars IEC60891_v2(generic_pars P, double alpha, double beta, double a, do
 	P.pars[9]=par.Roc;
 	return P;
 }
-// version 2 fitting utilities
-extern void dgelsd_( int* m, int* n, int* nrhs, double* a, int* lda,
-                double* b, int* ldb, double* s, double* rcond, int* rank,
-                double* work, int* lwork, int* iwork, int* info );
-
-
-int FitIsc(double *Isc, double *G, double *T, int N, double Gstd, double Tstd, double *Iscstd, double *alpha)
-{
-	double *M, *b, *s;
-	int i;
-	int m, n, nrhs = 1, lda, ldb, info, lwork, rank;
-	/* Negative rcond means using default (machine precision) value */
-	double rcond = -1.0;
-	double wkopt;
-	double* work;
-    int *iwork;
-		
-	if((M=Emalloc(N*2*sizeof(double)))==NULL)
-	{
-		return 1;
-	}
-	if((b=Emalloc(N*sizeof(double)))==NULL)
-	{
-		free(M);
-		return 1;
-	}
-	for (i=0;i<N;i++)
-	{
-		M[i]=Gstd*Isc[i]*(Tstd-T[i])/G[i];
-		M[N+i]=-1.0;
-		b[i]=-Gstd*Isc[i]/G[i];
-	}
-		
-	n=N;
-	m=2;
-	if((s=Emalloc(m*sizeof(double)))==NULL)
-	{
-		free(M);
-		free(b);
-		return 1;
-	}
-	lda=n;
-	ldb=n;
-	//print_matrix(n, m, M);
-	
-	if((iwork=Emalloc(11*m*sizeof(int)))==NULL)
-	{
-		free(M);
-		free(b);
-		free(s);
-		return 1;
-	}
-    lwork = -1;
-    dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, &wkopt, &lwork,
-                        iwork, &info );
-	lwork = (int)wkopt;
-	work = (double*)Emalloc( lwork*sizeof(double) );
-	if (!work)
-	{
-		free(M);
-		free(b);
-		free(s);
-		free(iwork);
-		return 1;
-	}
-	/* Solve the equations A*X = B */
-	dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, work, &lwork,
-					iwork, &info );
-	/* Check for convergence */
-	if( info > 0 )
-	{
-		(*alpha)=0;
-		(*Iscstd)=0;
-	}
-	else
-	{
-		(*alpha)=b[0];
-		(*Iscstd)=b[1];
-	}
-	free(b);
-	free(M);
-	free(s);
-	free(work);
-	free(iwork);
-	if (info>0)
-		return 1;
-	else
-		return 0;
-}
-
-int FitVoc(double *Voc, double *G, double *T, int N, double Gstd, double Tstd, double *Vocstd, double *beta, double *a)
-{
-	double *M, *b, *s;
-	int i;
-	int m, n, nrhs = 1, lda, ldb, info, lwork, rank;
-	/* Negative rcond means using default (machine precision) value */
-	double rcond = -1.0;
-	double wkopt;
-	double* work;
-    int *iwork;
-			
-	if((M=Emalloc(N*3*sizeof(double)))==NULL)
-	{
-		return 1;
-	}
-	if((b=Emalloc(N*sizeof(double)))==NULL)
-	{
-		free(M);
-		return 1;
-	}
-	for (i=0;i<N;i++)
-	{
-		M[i]=-1.0;
-		M[N+i]=Voc[i]*(Tstd-T[i]);
-		M[2*N+i]=Voc[i]*log(Gstd/G[i]);
-		b[i]=-Voc[i];
-	}
-		
-	n=N;
-	m=3;
-	if((s=Emalloc(m*sizeof(double)))==NULL)
-	{
-		free(M);
-		free(b);
-		return 1;
-	}
-	lda=n;
-	ldb=n;
-	//print_matrix(n, m, M);
-	
-	if((iwork=Emalloc(11*m*sizeof(int)))==NULL)
-	{
-		free(M);
-		free(b);
-		free(s);
-		return 1;
-	}
-    lwork = -1;
-    dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, &wkopt, &lwork,
-                        iwork, &info );
-	lwork = (int)wkopt;
-	work = (double*)Emalloc( lwork*sizeof(double) );
-	if (!work)
-	{
-		free(M);
-		free(b);
-		free(s);
-		free(iwork);
-		return 1;
-	}
-	/* Solve the equations A*X = B */
-	dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, work, &lwork,
-					iwork, &info );
-	/* Check for convergence */
-	if( info > 0 )
-	{
-		(*a)=0;
-		(*Vocstd)=0;
-		(*beta)=0;
-	}
-	else
-	{
-		(*Vocstd)=b[0];
-		(*beta)=b[1];
-		(*a)=b[2];
-	}
-	free(b);
-	free(M);
-	free(s);
-	free(work);
-	free(iwork);
-	if (info>0)
-		return 1;
-	else
-		return 0;
-}
-
-int FitMpp(double *Vmpp, double *Impp, double *Voc, double *G, double *T, int N, double Gstd, double Tstd, double alpha, double beta, double a, double *Imppstd, double *Vmppstd, double *Rs, double *kappa)
-{
-	double *M, *b, *s, Istd=0;
-	int i;
-	int m, n, nrhs = 1, lda, ldb, info, lwork, rank;
-	/* Negative rcond means using default (machine precision) value */
-	double rcond = -1.0;
-	double wkopt;
-	double* work;
-    int *iwork;
-	for (i=0;i<N;i++)
-		Istd+=IEC_v2_I2(Impp[i],alpha,Tstd-T[i],Gstd/G[i]);
-	(*Imppstd)=Istd/(double)N;
-	
-	if((M=Emalloc(N*3*sizeof(double)))==NULL)
-	{
-		return 1;
-	}
-	if((b=Emalloc(N*sizeof(double)))==NULL)
-	{
-		free(M);
-		return 1;
-	}
-	
-	for (i=0;i<N;i++)
-	{
-		M[i]=(Impp[i]-(*Imppstd));
-		M[N+i]=(*Imppstd)*(T[i]-Tstd);
-		M[2*N+i]=-1.0;
-		b[i]=-Vmpp[i]-Voc[i]*(beta*(Tstd-T[i])+a*log(Gstd/G[i]));
-	}
-		
-	n=N;
-	m=3;
-	if((s=Emalloc(m*sizeof(double)))==NULL)
-	{
-		free(M);
-		free(b);
-		return 1;
-	}
-	lda=n;
-	ldb=n;
-	//print_matrix(n, m, M);
-	
-	if((iwork=Emalloc(11*m*sizeof(int)))==NULL)
-	{
-		free(M);
-		free(b);
-		free(s);
-		return 1;
-	}
-    lwork = -1;
-    dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, &wkopt, &lwork,
-                        iwork, &info );
-	lwork = (int)wkopt;
-	work = (double*)Emalloc( lwork*sizeof(double) );
-	if (!work)
-	{
-		free(M);
-		free(b);
-		free(s);
-		free(iwork);
-		return 1;
-	}
-	/* Solve the equations A*X = B */
-	dgelsd_( &n, &m, &nrhs, M, &lda, b, &ldb, s, &rcond, &rank, work, &lwork,
-					iwork, &info );
-	/* Check for convergence */
-	if( info > 0 )
-	{
-		(*Rs)=0;
-		(*kappa)=0;
-		(*Vmppstd)=0;
-	}
-	else
-	{	
-		(*Rs)=b[0];
-		(*kappa)=b[1];
-		(*Vmppstd)=b[2];
-	}
-	free(b);
-	free(M);
-	free(s);
-	free(work);
-	free(iwork);
-	if (info>0)
-		return 1;
-	else
-		return 0;
-}
-typedef struct {
-	curvepars *C;
-	curve P;// a curve containing only the 5 key points
-	double *G, *T;
-	int N;
-	double Tstd, Gstd;
-	MODELSET *S;
-} errpars;
-
-/* optimization vector x preprocessing macros
- * x[0]: alpha
- * x[1]: beta
- * x[2]: a
- * x[3]: Rs
- * x[4]: kappa
- */
-#define PRE_NONE(a)  (a) 		// preprocessor: do nothing
-#define IPRE_NONE(a) (a) 		// inverse thereof
-#define PRE_ABS(a)   (fabs(a))  // preprocessor: absolute value
-#define IPRE_ABS(a)  (a) 		// inverse thereof
-#define PRE_EXP(a)   (exp(a))   // preprocessor: absolute value
-#define IPRE_EXP(a)  (log(a))	// inverse thereof
-
-#define FX0(a)  (PRE_NONE(a))
-#define IFX0(a) (IPRE_NONE(a))
-
-#define FX1(a)  (PRE_NONE(a))
-#define IFX1(a) (IPRE_NONE(a))
-
-#define FX2(a)  (PRE_ABS(a))
-#define IFX2(a) (IPRE_ABS(a))
-
-#define FX3(a)  (PRE_ABS(a))
-#define IFX3(a) (IPRE_ABS(a))
-
-#define FX4(a)  (PRE_NONE(a))
-#define IFX4(a) (IPRE_NONE(a))
-
-
-double FitErr(double x[5], void *args)
-{
-	double E=0;
-	errpars *pp;
-	int i;
-	generic_pars P2;
-	pp=(errpars *) args;
-	P2.TYPE=M_PVSPLINE;
-	for (i=0;i<pp->N;i++)
-	{
-		double e;
-		P2.pars[0]=pp->C[i].Voc;
-		P2.pars[1]=pp->C[i].Isc;
-		P2.pars[2]=pp->C[i].Vmpp;
-		P2.pars[3]=pp->C[i].Impp;
-		P2.pars[4]=pp->C[i].Vqmp1;
-		P2.pars[5]=pp->C[i].Iqmp1;
-		P2.pars[6]=pp->C[i].Vqmp2;
-		P2.pars[7]=pp->C[i].Iqmp2;
-		P2.pars[8]=pp->C[i].Gsc;
-		P2.pars[9]=pp->C[i].Roc;
-		P2=IEC60891_v2(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), pp->T[i], pp->Tstd, pp->G[i], pp->Gstd, pp->S); // from stc to actual
-		e=SplineRMSErr(P2, pp->P, pp->S);
-		if (!isfinite(e))
-			e=1; // 100% error
-		E+=e;
-	}
-	return E;
-}
-
-#define SIMPLSIZE 0.2 // simplex size
-#define MINSIMPLSIZE 1e-4 // simplex size
-void OptimizeIEC_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODELSET *S)
-{
-	double x[5];
-	double step[5];
-	double xmin[5];
-	int NCALLS, NRESTART, Err;	
-	double EPS2=S->fiteps, E;
-	errpars pp;
-	
-	
-	/* square EPS to save some sqrts */
-	EPS2*=EPS2*N*10;	
-	
-	/* fill the x vector */
-	xmin[0]=x[0]=IFX0(*alpha);
-	xmin[1]=x[1]=IFX1(*beta);
-	xmin[2]=x[2]=IFX2(*a);
-	xmin[3]=x[3]=IFX3(*Rs);
-	xmin[4]=x[4]=IFX4(*kappa);
-	
-	
-	step[0]=SIMPLSIZE*x[0]+MINSIMPLSIZE;
-	step[1]=SIMPLSIZE*x[1]+MINSIMPLSIZE;
-	step[2]=SIMPLSIZE*x[2]+MINSIMPLSIZE;
-	step[3]=SIMPLSIZE*x[3]+MINSIMPLSIZE;
-	step[4]=SIMPLSIZE*x[4]+MINSIMPLSIZE;
-	
-	pp.P.N=5;
-	if((pp.P.P=Emalloc(5*sizeof(point)))==NULL)	
-		return;
-	pp.P.P[0].x=0;
-	pp.P.P[0].y=Cstd->Isc;
-	pp.P.P[1].x=Cstd->Vqmp1;
-	pp.P.P[1].y=Cstd->Iqmp1;
-	pp.P.P[2].x=Cstd->Vmpp;
-	pp.P.P[2].y=Cstd->Impp;
-	pp.P.P[3].x=Cstd->Vqmp2;
-	pp.P.P[3].y=Cstd->Iqmp2;
-	pp.P.P[4].x=Cstd->Voc;
-	pp.P.P[4].y=0;
-	pp.C=C;
-	pp.G=G;
-	pp.T=T;
-	pp.N=N;
-	pp.Tstd=Tstd;
-	pp.Gstd=Gstd;
-	pp.S=S;
-	
-	
-	E=FitErr(x, (void *) (&pp));
-	//printf("Initial Error: %e\n", E/(double)N);
-	if (E>EPS2)
-		nelmin (FitErr, (void *) (&pp), 5, x, xmin, &E, EPS2, step, 50, 1000, &NCALLS,&NRESTART, &Err);
-	//printf("Final Error:   %e\n", E/(double)N);
-	free(pp.P.P);
-	(*alpha)=FX0(xmin[0]);
-	(*beta)=FX0(xmin[1]);
-	(*a)=FX0(xmin[2]);
-	(*Rs)=FX0(xmin[3]);
-	(*kappa)=FX0(xmin[4]);
-}
-
-/* fit the IEC norm, return spline pars at Tstd,Gstd and set alpha, beta, ... etc. */
-generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODELSET *S)
-{
-	int i;
-	double *arr, Ts, Gs;
-	generic_pars P={0}, P2;
-	curvepars Cstd;
-
-	if((arr=Emalloc(4*N*sizeof(double)))==NULL)
-		return P;
-	
-	P.TYPE=M_PVSPLINE;
-	// compute temporary standard temperatures and irradiances
-	// as the mean temperature and irradiance
-	Ts=0;
-	Gs=0;
-	for (i=0;i<N;i++)
-	{
-		Ts+=T[i];
-		Gs+=G[i];
-		
-		arr[i]=C[i].Voc;
-		arr[N+i]=C[i].Isc;
-		arr[2*N+i]=C[i].Vmpp;
-		arr[3*N+i]=C[i].Impp;
-	}
-	Ts/=(double)N;
-	Gs/=(double)N;	
-	//printf("Tstd,Gstd: %f, %f\n", Ts, Gs);
-	
-	
-	// initial fit using a sequence of OLS-like solutions
-	(*alpha)=0;
-	(*beta)=0;
-	(*a)=0;
-	(*Rs)=0;
-	(*kappa)=0;
-	
-	if (FitIsc(arr+N, G, T, N, Gs, Ts, &(P.pars[1]), alpha))
-		goto IECFITFINISH; // give up
-	if (FitVoc(arr, G, T, N, Gs, Ts, &(P.pars[0]), beta, a))
-		goto IECFITFINISH; // give up
-	if(FitMpp(arr+2*N, arr+3*N, arr, G, T, N, Gs, Ts, *alpha, *beta, *a, &(P.pars[3]), &(P.pars[2]), Rs, kappa))
-		goto IECFITFINISH; // give up
-		
-	// compute the STC curve
-	for (i=0;i<N;i++)
-	{
-		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
-		P2.pars[0]=C[i].Voc;
-		P2.pars[1]=C[i].Isc;
-		P2.pars[2]=C[i].Vmpp;
-		P2.pars[3]=C[i].Impp;
-		P2.pars[4]=C[i].Vqmp1;
-		P2.pars[5]=C[i].Iqmp1;
-		P2.pars[6]=C[i].Vqmp2;
-		P2.pars[7]=C[i].Iqmp2;
-		P2.pars[8]=C[i].Gsc;
-		P2.pars[9]=C[i].Roc;
-		P2=IEC60891_v2(P2, *alpha, *beta, *a, *Rs, *kappa, T[i], Ts, G[i], Gs, S);
-		// all parameters beyond the standard solpars are not initialized yet
-		P.pars[4]+=P2.pars[4];
-		P.pars[5]+=P2.pars[5];
-		P.pars[6]+=P2.pars[6];
-		P.pars[7]+=P2.pars[7];
-		P.pars[8]+=P2.pars[8];
-		P.pars[9]+=P2.pars[9];
-	}
-	P.pars[4]/=(double)N;
-	P.pars[5]/=(double)N;
-	P.pars[6]/=(double)N;
-	P.pars[7]/=(double)N;
-	P.pars[8]/=(double)N;
-	P.pars[9]/=(double)N;
-	
-	Cstd.Voc=P.pars[0];
-	Cstd.Isc=P.pars[1];
-	Cstd.Vmpp=P.pars[2];
-	Cstd.Impp=P.pars[3];
-	Cstd.Vqmp1=P.pars[4];
-	Cstd.Iqmp1=P.pars[5];
-	Cstd.Vqmp2=P.pars[6];
-	Cstd.Iqmp2=P.pars[7];
-	Cstd.Gsc=P.pars[8];
-	Cstd.Roc=P.pars[9];
-	
-	
-	// optimize solution using a downhill simplex
-	OptimizeIEC_v2(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, a, Rs, kappa, S);
-	
-	// rebase the std condition from Ts,Gs to Tstd,Gstd
-	P.pars[0]=0;
-	P.pars[1]=0;
-	P.pars[2]=0;
-	P.pars[3]=0;
-	P.pars[4]=0;
-	P.pars[5]=0;
-	P.pars[6]=0;
-	P.pars[7]=0;
-	P.pars[8]=0;
-	P.pars[9]=0;
-	for (i=0;i<N;i++)
-	{
-		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
-		P2.pars[0]=C[i].Voc;
-		P2.pars[1]=C[i].Isc;
-		P2.pars[2]=C[i].Vmpp;
-		P2.pars[3]=C[i].Impp;
-		P2.pars[4]=C[i].Vqmp1;
-		P2.pars[5]=C[i].Iqmp1;
-		P2.pars[6]=C[i].Vqmp2;
-		P2.pars[7]=C[i].Iqmp2;
-		P2.pars[8]=C[i].Gsc;
-		P2.pars[9]=C[i].Roc;
-		P2=IEC60891_v2(P2, *alpha, *beta, *a, *Rs, *kappa, T[i], Tstd, G[i], Gstd, S);
-		// all parameters beyond the standard solpars are not initialized yet
-		P.pars[0]+=P2.pars[0];
-		P.pars[1]+=P2.pars[1];
-		P.pars[2]+=P2.pars[2];
-		P.pars[3]+=P2.pars[3];
-		P.pars[4]+=P2.pars[4];
-		P.pars[5]+=P2.pars[5];
-		P.pars[6]+=P2.pars[6];
-		P.pars[7]+=P2.pars[7];
-		P.pars[8]+=P2.pars[8];
-		P.pars[9]+=P2.pars[9];
-	}
-	P.pars[0]/=(double)N;
-	P.pars[1]/=(double)N;
-	P.pars[2]/=(double)N;
-	P.pars[3]/=(double)N;
-	P.pars[4]/=(double)N;
-	P.pars[5]/=(double)N;
-	P.pars[6]/=(double)N;
-	P.pars[7]/=(double)N;
-	P.pars[8]/=(double)N;
-	P.pars[9]/=(double)N;
-	
-	
-IECFITFINISH:
-	free(arr);
-	return P;
-}
-
-
-#undef FX0
-#undef IFX0
-#undef FX1
-#undef IFX1
-#undef FX2
-#undef IFX2
-#undef FX3
-#undef IFX3
-#undef FX4
-#undef IFX4
-
 /*  IEC 60891 v3 (2021):
 * 
 * 
@@ -1303,6 +757,13 @@ IECFITFINISH:
 * 
 * 
 * A lot more complicated than before but at least the round trip consistency is now given
+*
+* RsG-modified v3 (not part of the norm): an irradiance dependent series resistance
+* Rs(G,T) = Rs + κ(T - Tstd) + ρ ln(G/Gstd), Rs1=Rs(G1,T1), Rs2=Rs(G2,T2)
+* The norm's -Rs1 (I2 - I1) - κ I2 (T2 - T1) equals -Rs2 I2 + Rs1 I1, so with Rs(G,T)
+* V2 = V1 - Rs1 (I2 - I1) - κ I2 (T2 - T1) - ρ I2 ln(G2/G1) + Voc,std (...)
+* which keeps the round trip consistency, ρ=0 is the norm.
+* With c = I2/I1: dI/dV2 = c dI/dV1 / (1 + (Rs1 - c Rs2) dI/dV1)
 * 
 * 
 * 
@@ -1319,41 +780,14 @@ dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts^2+(2*G1*T1-2*G2*T2)*Ts+G2*T
 
 */
 
-/* optimization vector x preprocessing macros
- * x[0]: alpha
- * x[1]: beta
- * x[2]: B1
- * x[3]: B2
- * x[4]: Rs
- * x[5]: kappa
- */
-
-#define FX0(a)  (PRE_NONE(a))
-#define IFX0(a) (IPRE_NONE(a))
-
-#define FX1(a)  (PRE_NONE(a))
-#define IFX1(a) (IPRE_NONE(a))
-
-#define FX2(a)  (PRE_NONE(a))
-#define IFX2(a) (IPRE_NONE(a))
-
-#define FX3(a)  (PRE_NONE(a))
-#define IFX3(a) (IPRE_NONE(a))
-
-#define FX4(a)  (PRE_ABS(a))
-#define IFX4(a) (IPRE_ABS(a))
-
-#define FX5(a)  (PRE_NONE(a))
-#define IFX5(a) (IPRE_NONE(a))
-
 void IEC_v3(double V1, double Vs, double I1, double dIdV1,
             double G1, double G2, double Gs, 
             double T1, double T2, double Ts,
-            double alpha, double beta, double B1, double B2, double Rs, double kappa,
+            double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho,
             double *V2o, double *I2o, double *dIdV2o)
 {
-	double I2,V2,dIdV2;
-	double Rs1, l, FG1, FG2;
+	double I2,V2,dIdV2,c;
+	double Rs1, Rs2, l, FG1, FG2;
 	
 	if ((fabs((G1-G2)/Gs)<1e-9)&&(fabs((T1-T2)/Ts)<1e-9))
 	{
@@ -1376,22 +810,37 @@ void IEC_v3(double V1, double Vs, double I1, double dIdV1,
 	V2=V1-Rs1*(I2-I1)-kappa*I2*(T2-T1);
 	V2+=Vs*(beta*(FG2*(T2-Ts)-FG1*(T1-Ts))+1/FG2-1/FG1);
 	
-	dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts*Ts+(2*G1*T1-2*G2*T2)*Ts+G2*T2*T2-G1*T1*T1)*alpha+(G1-G2)*Ts+G2*T2-G1*T1)*dIdV1*kappa+(((G1-G2)*Rs*Ts+G2*Rs*T2-G1*Rs*T1)*alpha+(G2-G1)*Rs)*dIdV1+(G1*Ts-G1*T1)*alpha-G1);
+	if (rho==0)
+		dIdV2=(((G2*Ts-G2*T2)*alpha-G2)*dIdV1)/((((G2-G1)*Ts*Ts+(2*G1*T1-2*G2*T2)*Ts+G2*T2*T2-G1*T1*T1)*alpha+(G1-G2)*Ts+G2*T2-G1*T1)*dIdV1*kappa+(((G1-G2)*Rs*Ts+G2*Rs*T2-G1*Rs*T1)*alpha+(G2-G1)*Rs)*dIdV1+(G1*Ts-G1*T1)*alpha-G1);
+	else
+	{
+		/* RsG-modified v3, the norm terms above stay as they are (bit identical
+		 * results for rho=0), the rho terms are added:
+		 * Rs1 = Rs(G1,T1), V2 -= rho I2 ln(G2/G1) */
+		V2-=rho*(log(G1/Gs)*(I2-I1)+I2*log(G2/G1));
+		Rs1+=rho*log(G1/Gs);
+		Rs2=Rs1+kappa*(T2-T1)+rho*log(G2/G1);
+		// dI2 = c dI1, dV2 = dV1 + (Rs1 - c Rs2) dI1
+		c=(G2/G1)*(1+alpha*(T2-Ts))/(1+alpha*(T1-Ts));
+		dIdV2=c*dIdV1/(1+(Rs1-c*Rs2)*dIdV1);
+	}
 	(*I2o)=I2;
 	(*V2o)=V2;
 	(*dIdV2o)=dIdV2;
 }
 
-generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
+generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S)
 {
 	splinepars Sp, Sn;
 	curvepars par;
 	int i;
+	if (P.TYPE==M_PVBEZIER)
+		return B3IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, rho, Vocstd, T1, T2, Tstd, G1, G2, Gstd, S);
 	Sp=Generic2SplinePars(P);
-	Sn=Generic2SplinePars(P);
+	Sn=Sp;
 	
 	for (i=0;i<Sp.N;i++)
-		IEC_v3(Sp.V[i], Vocstd, Sp.I[i], Sn.dI[i],G1, G2, Gstd,T1, T2, Tstd,alpha,beta,B1,B2,Rs,kappa,Sn.V+i,Sn.I+i,Sn.dI+i);
+		IEC_v3(Sp.V[i], Vocstd, Sp.I[i], Sn.dI[i],G1, G2, Gstd,T1, T2, Tstd,alpha,beta,B1,B2,Rs,kappa,rho,Sn.V+i,Sn.I+i,Sn.dI+i);
 	
 	par=SolPar(Sn.V[Sn.index[4]], Sn.I[Sn.index[0]], (void *) &Sn, &splineIV_i, S);
 	
@@ -1408,332 +857,477 @@ generic_pars IEC60891_v3(generic_pars P, double alpha, double beta, double B1, d
 	return P;
 }
 
-double FitErr2(double x[6], void *args)
-{
-	double E=0, e;
-	errpars *pp;
-	int i;
-	generic_pars P2;
-	pp=(errpars *) args;
-	for (i=0;i<pp->N;i++)
-	{
-		P2.TYPE=M_PVSPLINE;
-		P2.pars[0]=pp->C[i].Voc;
-		P2.pars[1]=pp->C[i].Isc;
-		P2.pars[2]=pp->C[i].Vmpp;
-		P2.pars[3]=pp->C[i].Impp;
-		P2.pars[4]=pp->C[i].Vqmp1;
-		P2.pars[5]=pp->C[i].Iqmp1;
-		P2.pars[6]=pp->C[i].Vqmp2;
-		P2.pars[7]=pp->C[i].Iqmp2;
-		P2.pars[8]=pp->C[i].Gsc;
-		P2.pars[9]=pp->C[i].Roc;
-		P2=IEC60891_v3(P2, FX0(x[0]), FX1(x[1]), FX2(x[2]), FX3(x[3]), FX4(x[4]), FX5(x[5]), pp->P.P[4].x, pp->T[i], pp->Tstd, pp->Tstd, pp->G[i], pp->Gstd, pp->Gstd, pp->S); // from actual to std
-		e=SplineRMSErr(P2, pp->P, pp->S);
-		if (!isfinite(e))
-			e=1;
-		E+=e;
-	}
+/* ***********************************************************************
+ * Fitting the IEC 60891 (v2 and v3) procedure 2 coefficients
+ *
+ * Given ESP measured at N conditions (T, G), find the coefficients that
+ * best predict the measured ESP from one reference ESP at (Tstd, Gstd).
+ * For a set of coefficients the reference ESP is the mean of the measured
+ * ESP translated to Tstd, Gstd. It is then translated back to every
+ * measured condition, and the fit minimizes the sum over the curves of the
+ * RMS distance of the predicted curve to the 5 key points (sc, qmpp-, mpp,
+ * qmpp+, oc) of the measured ESP.
+ * Judging the coefficients in this forward direction matters for v2, which
+ * is not invertible: translating back with the true coefficients does not
+ * give identical ESP. The coefficients are defined at Tstd, Gstd, as the
+ * translation routines use them (v3 is not invariant to the reference).
+ *
+ * Start values come from linear least squares fits of the v2 relations
+ * for Isc, Voc and the mpp. A downhill simplex refines them. For large
+ * data sets the simplex uses an evenly spaced subset of IEC_NFIT curves
+ * (the cost is linear in the number of curves while 6 coefficients are
+ * well determined by a few hundred); the reference ESP is computed from
+ * all curves.
+ *
+ * The coefficients are kept in the v3 layout
+ *   c[0] alpha, c[1] beta, c[2] a (v2) or B1 (v3), c[3] B2 (v3), c[4] Rs, c[5] kappa,
+ *   c[6] rho (RsG-modified v3, version 4: Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd))
+ * Version 4 with the PV-spline starts the simplex from the v3 optimum.
+ * Version 4 is not part of the norm, internally it is v3 with a fitted rho.
+ * ***********************************************************************/
 
-	//printf("%e %e %e %e %e %e %e\n", x[0], x[1], x[2], x[3], x[4], x[5], E);
-	return E;
+#define IEC_NC 7 // size of the coefficient layout
+
+extern void dgelsd_( int* m, int* n, int* nrhs, double* a, int* lda,
+                double* b, int* ldb, double* s, double* rcond, int* rank,
+                double* work, int* lwork, int* iwork, int* info );
+
+/* least squares solution x (m) of A x = b with A (n x m, column major).
+ * A and b are overwritten. A rank deficient system (e.g. all curves at the
+ * same temperature) gets the minimum norm solution. Returns 1 on failure. */
+static int LSQ(double *A, double *b, int n, int m, double *x)
+{
+	int nrhs=1, lda=n, ldb=n, lwork=-1, rank, info, i;
+	double rcond=-1.0, wkopt, *s, *work=NULL;
+	int *iwork;
+	if (n<m)
+		return 1;
+	s=Emalloc(m*sizeof(double));
+	iwork=Emalloc((11*m+32)*sizeof(int));
+	if (s && iwork)
+	{
+		dgelsd_(&n, &m, &nrhs, A, &lda, b, &ldb, s, &rcond, &rank, &wkopt, &lwork, iwork, &info);
+		lwork=(int)wkopt;
+		if ((info==0)&&((work=Emalloc(lwork*sizeof(double)))!=NULL))
+			dgelsd_(&n, &m, &nrhs, A, &lda, b, &ldb, s, &rcond, &rank, work, &lwork, iwork, &info);
+	}
+	if (!work)
+		info=-1;
+	for (i=0;(info==0)&&(i<m);i++)
+		x[i]=b[i];
+	free(s);
+	free(iwork);
+	free(work);
+	return (info!=0);
 }
 
-// part errors
-// only Voc
-double FitErrV(double x[6], void *args)
+/* start values c (v3 layout, B2=0) from linear least squares fits of the v2 relations
+ *   Isc_i Gstd/G_i (1 + alpha (Tstd-T_i)) = Iscstd
+ *   Voc_i (1 + beta (Tstd-T_i) + a ln(Gstd/G_i)) = Vocstd
+ *   Vmpp_i + Voc_i (beta (Tstd-T_i) + a ln(Gstd/G_i)) - Rs (Imppstd-Impp_i)
+ *          - kappa Imppstd (Tstd-T_i) = Vmppstd
+ * with Imppstd the mean Impp translated with alpha. Returns 1 on failure. */
+static int IECStart(const curvepars *C, const double *G, const double *T, int N, double Tstd, double Gstd, double c[IEC_NC])
 {
-	double E=0, f, e;
-	errpars *pp;
-	int i;
-	pp=(errpars *) args;
-	for (i=0;i<pp->N;i++)
-	{
-		f=log(pp->Gstd/pp->G[i]);
-		f=1+FX2(x[1])*f+FX3(x[2])*f*f;
-		e=pp->P.P[4].x-pp->C[i].Voc*(1/f+FX1(x[0])*(pp->Tstd - pp->T[i])*f);
-		E+=e*e;
-		//printf("%e \n", e);
-	}
-	//printf("%e \n\n", E);
-	return E;
-}
-
-// only Mpp
-double FitErrM(double x[6], void *args)
-{
-	double E=0;
-	errpars *pp;
-	int i;
-	generic_pars P2;
-	pp=(errpars *) args;
-	for (i=0;i<pp->N;i++)
-	{
-		P2.TYPE=M_PVSPLINE;
-		P2.pars[0]=pp->C[i].Voc;
-		P2.pars[1]=pp->C[i].Isc;
-		P2.pars[2]=pp->C[i].Vmpp;
-		P2.pars[3]=pp->C[i].Impp;
-		P2.pars[4]=pp->C[i].Vqmp1;
-		P2.pars[5]=pp->C[i].Iqmp1;
-		P2.pars[6]=pp->C[i].Vqmp2;
-		P2.pars[7]=pp->C[i].Iqmp2;
-		P2.pars[8]=pp->C[i].Gsc;
-		P2.pars[9]=pp->C[i].Roc;
-		P2=IEC60891_v3(P2, FX0(x[-4]), FX1(x[-3]), FX2(x[-2]), FX3(x[-1]), FX4(x[0]), FX5(x[1]), pp->P.P[4].x, pp->T[i], pp->Tstd, pp->Tstd, pp->G[i], pp->Gstd, pp->Gstd, pp->S); // from actual to std
-	
-		E+=SplineRMSErr(P2, pp->P, pp->S);	
-	}
-	//printf("%e %e %e %e %e %e %e\n", x[0], x[1], x[2], x[3], x[4], x[5], E);
-	return E;
-}
-// only Isc
-double FitErrI(double x[6], void *args)
-{
-	double E=0, e;
-	errpars *pp;
-	int i;
-	pp=(errpars *) args;
-	for (i=0;i<pp->N;i++)
-	{
-		e=pp->P.P[0].y-pp->C[i].Isc*pp->Gstd/(pp->G[i]*(1+FX1(x[1])*(pp->T[i]-pp->Tstd)));
-		E+=e*e;
-		//printf("%e \n", e);
-	}
-	//printf("%e \n\n", E);
-	return E;
-}
-
-void OptimizeIEC_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, curvepars *Cstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODELSET *S)
-{
-	double x[6], x0[6];
-	double step[6];
-	double xmin[6];
-	int NCALLS, NRESTART, Err;	
-	double EPS2=S->fiteps, E,e, E0;
-	errpars pp;
-	
-	
-	//printf("Settings: eps=%e N=%d\n", S->fiteps, S->fititer);
-	/* square EPS to save some sqrts */
-	EPS2*=EPS2;	
-	
-	/* fill the x vector */
-	x[0]=x0[0]=xmin[0]=IFX0(*alpha);
-	x[1]=x0[1]=xmin[1]=IFX1(*beta);
-	x[2]=x0[2]=xmin[2]=IFX2(*B1);// initially should be equal to a in the version 2 norm!
-	x[3]=x0[3]=xmin[3]=IFX3(*B1);
-	x[4]=x0[4]=xmin[4]=IFX4(*Rs);
-	x[5]=x0[5]=xmin[5]=IFX5(*kappa);
-	/*
-	printf("alpha:   %e\n", FX0(xmin[0]));
-	printf("beta :   %e\n", FX1(xmin[1]));
-	printf("B1   :   %e\n", FX2(xmin[2]));
-	printf("B2   :   %e\n", FX3(xmin[3]));
-	printf("Rs   :   %e\n", FX4(xmin[4]));
-	printf("kappa:   %e\n", FX5(xmin[5]));*/
-	step[0]=SIMPLSIZE*x[0]+MINSIMPLSIZE;
-	step[1]=SIMPLSIZE*x[1]+MINSIMPLSIZE;
-	step[2]=SIMPLSIZE*x[2]+MINSIMPLSIZE;
-	step[3]=SIMPLSIZE*x[2]+MINSIMPLSIZE; // note size related to x2
-	step[4]=SIMPLSIZE*x[4]+MINSIMPLSIZE;
-	step[5]=SIMPLSIZE*x[5]+MINSIMPLSIZE;
-	
-	pp.P.N=5;
-	if((pp.P.P=Emalloc(5*sizeof(point)))==NULL)
-	{
-		return;
-	}	
-	pp.P.P[0].x=0;
-	pp.P.P[0].y=Cstd->Isc;
-	pp.P.P[1].x=Cstd->Vqmp1;
-	pp.P.P[1].y=Cstd->Iqmp1;
-	pp.P.P[2].x=Cstd->Vmpp;
-	pp.P.P[2].y=Cstd->Impp;
-	pp.P.P[3].x=Cstd->Vqmp2;
-	pp.P.P[3].y=Cstd->Iqmp2;
-	pp.P.P[4].x=Cstd->Voc;
-	pp.P.P[4].y=0;
-	pp.C=C;
-	pp.G=G;
-	pp.T=T;
-	pp.N=N;
-	pp.Tstd=Tstd;
-	pp.Gstd=Gstd;
-	pp.S=S;
-	
-	
-	E=FitErr2(x, (void *) (&pp));
-	E0=E;
-	//printf("Initial Error: %e\n", E/(double)N);	
-	/* only fit Voc
-	nelmin (FitErrV, (void *) (&pp), 3, x+1, xmin+1, &E, EPS2, step+1, 10, S->fititer, &NCALLS,&NRESTART, &Err);
-	e=FitErr2(xmin, (void *) (&pp));
-	if (e<E0)
-	{
-		E0=e;
-		x0[3]=xmin[3];
-		x0[2]=xmin[2];
-		x0[1]=xmin[1];	
-	}
-	printf("OC Error: %e\n", E0/(double)N);
-	e=FitErr2(x0, (void *) (&pp));
-	printf("Error0: %e\n", e/(double)N);
-	
-	printf("beta :   %e\n", FX1(x0[1]));
-	printf("B1   :   %e\n", FX2(x0[2]));
-	printf("B2   :   %e\n", FX3(x0[3]));
-	x[0]=xmin[0]=x0[0];
-	x[1]=xmin[1]=x0[1];
-	x[2]=xmin[2]=x0[2];
-	x[3]=xmin[3]=x0[3];
-	x[4]=xmin[4]=x0[4];
-	x[5]=xmin[5]=x0[5]; */
-	/* fit Rs and Kappa 
-	nelmin (FitErrM, (void *) (&pp), 2, x+4, xmin+4, &E, EPS2, step+4, 10, S->fititer, &NCALLS,&NRESTART, &Err);
-	e=FitErr2(xmin, (void *) (&pp));
-	if (e<E0)
-	{
-		E0=e;
-		x0[4]=xmin[4];
-		x0[5]=xmin[5];
-	}
-	e=FitErr2(x0, (void *) (&pp));
-	printf("MP Error: %e\n", E0/(double)N);
-	printf("Error0: %e\n", e/(double)N);
-	printf("Rs   :   %e\n", FX1(x0[4]));
-	printf("kappa:   %e\n", FX2(x0[5]));
-	
-	x[0]=xmin[0]=x0[0];
-	x[1]=xmin[1]=x0[1];
-	x[2]=xmin[2]=x0[2];
-	x[3]=xmin[3]=x0[3];
-	x[4]=xmin[4]=x0[4];
-	x[5]=xmin[5]=x0[5]; */
-	
-	// fit all
-	nelmin (FitErr2, (void *) (&pp), 6, x, xmin, &E, EPS2, step, 10, S->fititer, &NCALLS,&NRESTART, &Err);
-	e=FitErr2(xmin, (void *) (&pp));
-	if (e<E0)
-	{
-		x0[0]=xmin[0];
-		x0[1]=xmin[1];
-		x0[2]=xmin[2];
-		x0[3]=xmin[3];
-		x0[4]=xmin[4];
-		x0[5]=xmin[5];
-	}
-	free(pp.P.P);
-	/*printf("alpha:   %e\n", FX0(x0[0]));
-	printf("beta :   %e\n", FX1(x0[1]));
-	printf("B1   :   %e\n", FX2(x0[2]));
-	printf("B2   :   %e\n", FX3(x0[3]));
-	printf("Rs   :   %e\n", FX4(x0[4]));
-	printf("kappa:   %e\n", FX5(x0[5])); */
-	(*alpha)= FX0(x0[0]);
-	(*beta) = FX1(x0[1]);
-	(*B1)   = FX2(x0[2]);
-	(*B2)   = FX3(x0[3]);
-	(*Rs)   = FX4(x0[4]);
-	(*kappa)= FX5(x0[5]);
-}
-
-
-generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODELSET *S)
-{
-	int i;
-	double *arr, Ts=0, Gs=0;
-	generic_pars P={0}, P2;
-	curvepars Cstd;
-	 
-	/* we start with the version 2 of the IEC60891, it is fast and easily
-	 * fitted with 3 OLS-like fits
-	 */
-	 
-	if((arr=Emalloc(4*N*sizeof(double)))==NULL)
-		return P;
-	P.TYPE=M_PVSPLINE;
-	
-	// compute temporary std G and T
+	double *A, *b, x[3], Imppstd=0;
+	int i, err=1;
+	A=Emalloc(3*N*sizeof(double));
+	b=Emalloc(N*sizeof(double));
+	if (!A || !b)
+		goto IECSTARTFINISH;
 	for (i=0;i<N;i++)
 	{
-		Ts+=T[i];
-		Gs+=G[i];
-		arr[i]=C[i].Voc;
-		arr[N+i]=C[i].Isc;
-		arr[2*N+i]=C[i].Vmpp;
-		arr[3*N+i]=C[i].Impp;
+		A[i]=Gstd*C[i].Isc*(Tstd-T[i])/G[i];
+		A[N+i]=-1.0;
+		b[i]=-Gstd*C[i].Isc/G[i];
 	}
-	Ts/=(double)N;
-	Gs/=(double)N;
-	
-	// initial fit
-	(*alpha)=0;
-	(*beta)=0;
-	(*B1)=0;
-	(*B2)=0;
-	(*Rs)=0;
-	(*kappa)=0;
-	
-	if (FitIsc(arr+N, G, T, N, Gs, Ts, &(P.pars[1]), alpha))
-		goto IECFITFINISH; // give up
-	if (FitVoc(arr, G, T, N, Gs, Ts, &(P.pars[0]), beta, B1)) // initially we put the value of a in B1
-		goto IECFITFINISH; // give up
-	if(FitMpp(arr+2*N, arr+3*N, arr, G, T, N, Gs, Ts, *alpha, *beta, *B1, &(P.pars[3]), &(P.pars[2]), Rs, kappa))
-		goto IECFITFINISH; // give up
-		
-	// compute STC curve
+	if (LSQ(A, b, N, 2, x))
+		goto IECSTARTFINISH;
+	c[0]=x[0];
 	for (i=0;i<N;i++)
 	{
-		/* determine std conditions by translating every curve to std and determine mean parameter values */
-		P2.TYPE=M_PVSPLINE;
-		P2.pars[0]=C[i].Voc;
-		P2.pars[1]=C[i].Isc;
-		P2.pars[2]=C[i].Vmpp;
-		P2.pars[3]=C[i].Impp;
-		P2.pars[4]=C[i].Vqmp1;
-		P2.pars[5]=C[i].Iqmp1;
-		P2.pars[6]=C[i].Vqmp2;
-		P2.pars[7]=C[i].Iqmp2;
-		P2.pars[8]=C[i].Gsc;
-		P2.pars[9]=C[i].Roc;
-		P2=IEC60891_v2(P2, *alpha, *beta, *B1, *Rs, *kappa, T[i], Ts, G[i], Gs, S);
-		// all parameters beyond the standard solpars are not initialized yet
-		P.pars[4]+=P2.pars[4];
-		P.pars[5]+=P2.pars[5];
-		P.pars[6]+=P2.pars[6];
-		P.pars[7]+=P2.pars[7];
-		P.pars[8]+=P2.pars[8];
-		P.pars[9]+=P2.pars[9];
+		A[i]=-1.0;
+		A[N+i]=C[i].Voc*(Tstd-T[i]);
+		A[2*N+i]=C[i].Voc*log(Gstd/G[i]);
+		b[i]=-C[i].Voc;
 	}
-	P.pars[4]/=(double)N;
-	P.pars[5]/=(double)N;
-	P.pars[6]/=(double)N;
-	P.pars[7]/=(double)N;
-	P.pars[8]/=(double)N;
-	P.pars[9]/=(double)N;
-	
-	Cstd.Voc=P.pars[0];
-	Cstd.Isc=P.pars[1];
-	Cstd.Vmpp=P.pars[2];
-	Cstd.Impp=P.pars[3];
-	Cstd.Vqmp1=P.pars[4];
-	Cstd.Iqmp1=P.pars[5];
-	Cstd.Vqmp2=P.pars[6];
-	Cstd.Iqmp2=P.pars[7];
-	Cstd.Gsc=P.pars[8];
-	Cstd.Roc=P.pars[9];
-	
-	// optimize using a downhill simplex
-	OptimizeIEC_v3(C, G, T, N, Ts, Gs, &Cstd, alpha, beta, B1, B2, Rs, kappa, S);
-	
-	// rebase the std condition from Ts,Gs to Tstd,Gstd
-	P=IEC60891_v3(P, *alpha, *beta, *B1, *B2, *Rs, *kappa, Cstd.Voc, Ts, Tstd, Ts, Gs, Gstd, Gs, S);
-	
+	if (LSQ(A, b, N, 3, x))
+		goto IECSTARTFINISH;
+	c[1]=x[1];
+	c[2]=x[2];
+	for (i=0;i<N;i++)
+		Imppstd+=IEC_v2_I2(C[i].Impp, c[0], Tstd-T[i], Gstd/G[i]);
+	Imppstd/=(double)N;
+	for (i=0;i<N;i++)
+	{
+		A[i]=C[i].Impp-Imppstd;
+		A[N+i]=Imppstd*(T[i]-Tstd);
+		A[2*N+i]=-1.0;
+		b[i]=-C[i].Vmpp-C[i].Voc*(c[1]*(Tstd-T[i])+c[2]*log(Gstd/G[i]));
+	}
+	if (LSQ(A, b, N, 3, x))
+		goto IECSTARTFINISH;
+	c[3]=0;
+	c[4]=fabs(x[0]);
+	c[5]=x[1];
+	c[6]=0;
+	err=0;
+	for (i=0;i<IEC_NC;i++)
+		err|=!isfinite(c[i]);
+IECSTARTFINISH:
+	free(A);
+	free(b);
+	return err;
+}
+
+typedef struct {
+	int version;           // IEC 60891 version, 2 or 3 (4: RsG-modified v3)
+	int nc;                // number of fitted coefficients
+	const int *idx;        // their positions in the v3 layout
+	const curvepars *C;    // the ESP to fit
+	const double *G, *T;   // and their conditions
+	int N;
+	double Tstd, Gstd;     // reference conditions
+	MODEL_TYPE M;          // interpolation model
+	MODELSET *S;
+	double c0[IEC_NC], scale[IEC_NC];// coefficients c = c0 + scale y
+	generic_pars *tr;      // work space: the translated ESP
+	generic_pars ref;      // mean translated ESP
+	curve *K;              // the 5 key points of each measured ESP
+} IECFit;
+
+static void IECCoef(const IECFit *F, const double *y, double c[IEC_NC])
+{
+	int k;
+	for (k=0;k<IEC_NC;k++)
+		c[k]=F->c0[k];
+	for (k=0;k<F->nc;k++)
+		c[F->idx[k]]+=F->scale[F->idx[k]]*y[k];
+	c[4]=fabs(c[4]); // Rs >= 0
+}
+
+/* v3: the Voc at the reference conditions equals the mean translated Voc.
+ * At I=0 the translation gives Voc_std,i = Voc_i + Vocstd X_i, so
+ * Vocstd = <Voc_i>/(1-<X_i>) */
+static double IECVocstd(const IECFit *F, const double c[IEC_NC])
+{
+	double l, f, X=0, V=0;
+	int i;
+	for (i=0;i<F->N;i++)
+	{
+		l=log(F->Gstd/F->G[i]);
+		f=(c[3]*l+c[2])*l+1.0;
+		X+=-c[1]*f*(F->T[i]-F->Tstd)+1.0-1.0/f;
+		V+=F->C[i].Voc;
+	}
+	X/=(double)F->N;
+	V/=(double)F->N;
+	if (fabs(1-X)<1e-3) // not sensible, fall back to the mean Voc
+		return V;
+	return V/(1-X);
+}
+
+static int IECFinite(const generic_pars *P)
+{
+	int k;
+	for (k=0;k<10;k++)
+		if (!isfinite(P->pars[k]))
+			return 0;
+	return 1;
+}
+
+/* translate all ESP to the reference conditions and set F->ref to their
+ * mean. Returns the number of finite translated ESP. */
+static int IECTranslateAll(IECFit *F, const double c[IEC_NC])
+{
+	generic_pars P;
+	double Vocstd=0;
+	int i, k, n=0;
+	if (F->version!=2)
+		Vocstd=IECVocstd(F, c);
+	for (k=0;k<10;k++)
+		F->ref.pars[k]=0;
+	F->ref.TYPE=F->M;
+	P.TYPE=F->M;
+	for (i=0;i<F->N;i++)
+	{
+		P.pars[0]=F->C[i].Voc;
+		P.pars[1]=F->C[i].Isc;
+		P.pars[2]=F->C[i].Vmpp;
+		P.pars[3]=F->C[i].Impp;
+		P.pars[4]=F->C[i].Vqmp1;
+		P.pars[5]=F->C[i].Iqmp1;
+		P.pars[6]=F->C[i].Vqmp2;
+		P.pars[7]=F->C[i].Iqmp2;
+		P.pars[8]=F->C[i].Gsc;
+		P.pars[9]=F->C[i].Roc;
+		if (F->version==2)
+			F->tr[i]=IEC60891_v2(P, c[0], c[1], c[2], c[4], c[5], F->T[i], F->Tstd, F->G[i], F->Gstd, F->S);
+		else
+			F->tr[i]=IEC60891_v3(P, c[0], c[1], c[2], c[3], c[4], c[5], c[6], Vocstd, F->T[i], F->Tstd, F->Tstd, F->G[i], F->Gstd, F->Gstd, F->S);
+		if (IECFinite(F->tr+i))
+		{
+			for (k=0;k<10;k++)
+				F->ref.pars[k]+=F->tr[i].pars[k];
+			n++;
+		}
+	}
+	for (k=0;(n>0)&&(k<10);k++)
+		F->ref.pars[k]/=(double)n;
+	return n;
+}
+
+// RMS distance of the (translated) curve to the key points
+static double IEC_RMSErr(generic_pars P, curve C, MODELSET *S)
+{
+	if (P.TYPE==M_PVBEZIER)
+		return B3RMSErr(P, C, S);
+	return SplineRMSErr(P, C, S);
+}
+
+/* objective: sum of the RMS distances of the reference ESP translated to
+ * the measured conditions to the measured key points. A curve that fails to
+ * translate counts as 1 (100%) */
+static double IECErr(double y[], void *args)
+{
+	IECFit *F=(IECFit *)args;
+	generic_pars Q;
+	double c[IEC_NC], e, E=0;
+	int i;
+	IECCoef(F, y, c);
+	if (!IECTranslateAll(F, c))
+		return (double)F->N;
+	for (i=0;i<F->N;i++)
+	{
+		if (F->version==2)
+			Q=IEC60891_v2(F->ref, c[0], c[1], c[2], c[4], c[5], F->Tstd, F->T[i], F->Gstd, F->G[i], F->S);
+		else
+			Q=IEC60891_v3(F->ref, c[0], c[1], c[2], c[3], c[4], c[5], c[6], F->ref.pars[0], F->Tstd, F->T[i], F->Tstd, F->Gstd, F->G[i], F->Gstd, F->S);
+		e=IECFinite(&Q) ? IEC_RMSErr(Q, F->K[i], F->S) : 1.0;
+		E+=isfinite(e) ? e : 1.0;
+	}
+	return E;
+}
+
+/* a curve the fit can use: finite ESP with a positive mpp at a positive irradiance */
+static int IECValid(const curvepars *C, double G, double T)
+{
+	return isfinite(C->Voc) && isfinite(C->Isc) && isfinite(C->Vmpp) && isfinite(C->Impp)
+	    && isfinite(C->Vqmp1) && isfinite(C->Iqmp1) && isfinite(C->Vqmp2) && isfinite(C->Iqmp2)
+	    && isfinite(C->Gsc) && isfinite(C->Roc) && isfinite(G) && isfinite(T)
+	    && (G>0) && (C->Voc>0) && (C->Isc>0) && (C->Vmpp>0) && (C->Impp>0);
+}
+
+#define IEC_NFIT 128   // maximum number of curves used by the simplex
+#define IEC_STEP 0.2   // initial simplex size relative to the coefficient scale
+#define IEC_POLISH 0.05 // simplex size of the restart from the optimum
+/* fit IEC 60891 version 2 or 3 (4: RsG-modified v3). Returns the ESP at Tstd, Gstd and sets the
+ * coefficients c (v3 layout). On failure all values are NaN. */
+static generic_pars IEC60891Fit(int version, curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double c[IEC_NC], MODEL_TYPE M, MODELSET *S)
+{
+	static const int idx2[5]={0, 1, 2, 4, 5}, idx3[7]={0, 1, 2, 3, 4, 5, 6};
+	generic_pars P;
+	IECFit F={0};
+	double y[IEC_NC]={0}, ymin[IEC_NC]={0}, step[IEC_NC], floor[IEC_NC], E0, E, Emin, R0=0, reqmin;
+	point *kp=NULL;
+	curvepars *Cs=NULL, *Cv=NULL;
+	double *Gs=NULL, *Ts=NULL, *Gv=NULL, *Tv=NULL;
+	int i, k, n, icount, numres, ifault, run;
+
+	P.TYPE=M;
+	for (k=0;k<10;k++)
+		P.pars[k]=NAN;
+	for (k=0;k<IEC_NC;k++)
+		c[k]=NAN;
+	/* skip the curves the fit cannot use */
+	Cv=Emalloc(N*sizeof(curvepars));
+	Gv=Emalloc(N*sizeof(double));
+	Tv=Emalloc(N*sizeof(double));
+	if (!Cv || !Gv || !Tv)
+		goto IECFITFINISH;
+	for (i=0, k=0;i<N;i++)
+		if (IECValid(C+i, G[i], T[i]))
+		{
+			Cv[k]=C[i];
+			Gv[k]=G[i];
+			Tv[k]=T[i];
+			k++;
+		}
+	C=Cv;
+	G=Gv;
+	T=Tv;
+	N=k;
+	if (N<3)
+		goto IECFITFINISH;
+	if ((version==4)&&(M==M_PVSPLINE))
+	{
+		/* PV-spline: start from the v3 optimum (rho=0). From the least squares
+		 * start values the simplex can end worse than v3 (rho>0) */
+		IEC60891Fit(3, C, G, T, N, Tstd, Gstd, F.c0, M, S);
+		for (k=0;k<IEC_NC;k++)
+			if (!isfinite(F.c0[k]))
+				goto IECFITFINISH;
+	}
+	else if (IECStart(C, G, T, N, Tstd, Gstd, F.c0))
+		goto IECFITFINISH;
+
+	F.version=version;
+	F.nc=(version==2) ? 5 : ((version==3) ? 6 : 7);
+	F.idx=(version==2) ? idx2 : idx3;
+	/* the curves for the simplex: all, or an evenly spaced subset */
+	n=(N>IEC_NFIT) ? IEC_NFIT : N;
+	if (n<N)
+	{
+		Cs=Emalloc(n*sizeof(curvepars));
+		Gs=Emalloc(n*sizeof(double));
+		Ts=Emalloc(n*sizeof(double));
+		if (!Cs || !Gs || !Ts)
+			goto IECFITFINISH;
+		for (i=0;i<n;i++)
+		{
+			k=(int)(((long)i*N)/n);
+			Cs[i]=C[k];
+			Gs[i]=G[k];
+			Ts[i]=T[k];
+		}
+	}
+	F.C=(n<N) ? Cs : C;
+	F.G=(n<N) ? Gs : G;
+	F.T=(n<N) ? Ts : T;
+	F.N=n;
+	F.Tstd=Tstd;
+	F.Gstd=Gstd;
+	F.M=M;
+	F.S=S;
+	F.tr=Emalloc(N*sizeof(generic_pars));
+	F.K=Emalloc(n*sizeof(curve));
+	kp=Emalloc(5*n*sizeof(point));
+	if (!F.tr || !F.K || !kp)
+		goto IECFITFINISH;
+	for (i=0;i<n;i++)
+	{
+		F.K[i].N=5;
+		F.K[i].P=kp+5*i;
+		F.K[i].P[0].x=0;
+		F.K[i].P[0].y=F.C[i].Isc;
+		F.K[i].P[1].x=F.C[i].Vqmp1;
+		F.K[i].P[1].y=F.C[i].Iqmp1;
+		F.K[i].P[2].x=F.C[i].Vmpp;
+		F.K[i].P[2].y=F.C[i].Impp;
+		F.K[i].P[3].x=F.C[i].Vqmp2;
+		F.K[i].P[3].y=F.C[i].Iqmp2;
+		F.K[i].P[4].x=F.C[i].Voc;
+		F.K[i].P[4].y=0;
+	}
+
+	/* scale of each coefficient: its start value, at least a typical size.
+	 * R0 is a resistance scale for Rs and kappa */
+	for (k=0;k<N;k++)
+		R0+=C[k].Voc/C[k].Isc;
+	R0/=(double)N;
+	floor[0]=1e-4;    // alpha [1/K]
+	floor[1]=1e-4;    // beta [1/K]
+	floor[2]=1e-2;    // a, B1
+	floor[3]=1e-2;    // B2
+	floor[4]=1e-2*R0; // Rs
+	floor[5]=1e-4*R0; // kappa [Ohm/K]
+	floor[6]=1e-2*R0; // rho [Ohm]
+	for (k=0;k<IEC_NC;k++)
+		F.scale[k]=fabs(F.c0[k])+floor[k];
+
+	Emin=E0=IECErr(y, &F);
+	/* first a simplex from the start values, then a smaller one restarted
+	 * from the optimum as the simplex may collapse prematurely */
+	for (run=0;run<2;run++)
+	{
+		for (k=0;k<F.nc;k++)
+			step[k]=run ? IEC_POLISH : IEC_STEP;
+		reqmin=S->fiteps*Emin;
+		reqmin*=reqmin;
+		nelmin(IECErr, &F, F.nc, y, ymin, &E, reqmin, step, 10, S->fititer, &icount, &numres, &ifault);
+		if (!isfinite(E) || (E>=Emin))
+			break;
+		Emin=E;
+		for (k=0;k<F.nc;k++)
+			y[k]=ymin[k];
+	}
+	// y holds the best point (the start values if the simplex did not improve on them)
+	IECCoef(&F, y, c);
+	// the reference ESP from all curves
+	F.C=C;
+	F.G=G;
+	F.T=T;
+	F.N=N;
+	if (IECTranslateAll(&F, c)==0)
+	{
+		for (k=0;k<IEC_NC;k++)
+			c[k]=NAN;
+		goto IECFITFINISH;
+	}
+	if (version==2)
+		c[3]=0;
+	if (version<4)
+		c[6]=0;
+	P=F.ref;
 IECFITFINISH:
-	free(arr);
+	free(F.tr);
+	free(F.K);
+	free(kp);
+	free(Cs);
+	free(Gs);
+	free(Ts);
+	free(Cv);
+	free(Gv);
+	free(Tv);
 	return P;
 }
+#undef IEC_NFIT
+#undef IEC_STEP
+#undef IEC_POLISH
+
+/* fit the IEC 60891 v2 coefficients, returns the ESP at Tstd, Gstd (NaN on failure) */
+generic_pars IEC60891Fit_v2(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *a, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
+{
+	double c[IEC_NC];
+	generic_pars P=IEC60891Fit(2, C, G, T, N, Tstd, Gstd, c, M, S);
+	(*alpha)=c[0];
+	(*beta)=c[1];
+	(*a)=c[2];
+	(*Rs)=c[4];
+	(*kappa)=c[5];
+	return P;
+}
+
+/* fit the IEC 60891 v3 coefficients, returns the ESP at Tstd, Gstd (NaN on failure) */
+generic_pars IEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, MODEL_TYPE M, MODELSET *S)
+{
+	double c[IEC_NC];
+	generic_pars P=IEC60891Fit(3, C, G, T, N, Tstd, Gstd, c, M, S);
+	(*alpha)=c[0];
+	(*beta)=c[1];
+	(*B1)=c[2];
+	(*B2)=c[3];
+	(*Rs)=c[4];
+	(*kappa)=c[5];
+	return P;
+}
+
+/* fit the RsG-modified IEC 60891 v3 coefficients (v3 with Rs(G,T) = Rs + kappa (T-Tstd)
+ * + rho ln(G/Gstd)), returns the ESP at Tstd, Gstd (NaN on failure) */
+generic_pars RsGmodIEC60891Fit_v3(curvepars *C, double *G, double *T, int N, double Tstd, double Gstd, double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, MODEL_TYPE M, MODELSET *S)
+{
+	double c[IEC_NC];
+	generic_pars P=IEC60891Fit(4, C, G, T, N, Tstd, Gstd, c, M, S);
+	(*alpha)=c[0];
+	(*beta)=c[1];
+	(*B1)=c[2];
+	(*B2)=c[3];
+	(*Rs)=c[4];
+	(*kappa)=c[5];
+	(*rho)=c[6];
+	return P;
+}
+#undef IEC_NC
 
 // some utility functions to test plausibility of a set of curvepars
 /* hermite cubic spline base equations for the second derivative */

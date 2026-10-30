@@ -39,7 +39,7 @@
 #include "furthestsampling.h" // reduce datasets before fitting
 
 typedef struct {
-	int flag;
+	unsigned int flag;
 	int count;
 } FLAGCOUNT;
 
@@ -90,7 +90,7 @@ void pv_craze_verbosehead(int set)
 }
 // default settings for curve analysis
 analyze_settings def_settings = {
-	0,								// SpikeFilter
+	1,								// SpikeFilter
 	0,								// Ident Filter
 	0,								// resample
 	1e-12,							// Ident-Eps
@@ -107,7 +107,7 @@ MODEL_TYPE pv_craze_lookupmodel(char *word)
 
 
 #define LISTBLOCK 16
-int IsInList(FLAGLIST *list, int id)
+int IsInList(FLAGLIST *list, unsigned int id)
 {
 	int i;
 	if (list->N==0)
@@ -130,7 +130,7 @@ FLAGLIST InitFlagList()
 	return F;
 }
 
-int AddToList(FLAGLIST *list, int id)
+int AddToList(FLAGLIST *list, unsigned int id)
 {
 	int index;
 	if (!list->F)
@@ -384,17 +384,54 @@ AnalyzeFlag *pv_craze_flagtable(int *N)
 	{
 		A[i].FLAG=FLAG_CODE(i);
 		A[i].message=Fmessage(i);
-		A[i].ERR=(i>=NIVWARN);
+		A[i].ERR=Fiserror(i);
 	}
 	return A;
 }
 #define NROWLINE 4
 #define NCOLLINE 4
 
+/* letter used for flag number i in the report tables */
+static char FlagLetter(int i)
+{
+	int m=i%52;
+	return (m<26) ? 'a'+m : 'A'+m-26;
+}
+
+/* Report columns: warnings first, then errors, each in flag number order.
+ * Fills order[0..NIVF-2] with flag numbers and returns the number of warnings. */
+static int ReportOrder(int *order)
+{
+	int i, n=0, nw;
+	for (i=1;i<NIVF;i++)
+		if (!Fiserror(i))
+			order[n++]=i;
+	nw=n;
+	for (i=1;i<NIVF;i++)
+		if (Fiserror(i))
+			order[n++]=i;
+	return nw;
+}
+
+/* column separator before report column p (0 based): "||" between warnings
+ * and errors, "|" every NCOLLINE columns. c is the character to repeat. */
+static void ColSep(int p, int nw, char c)
+{
+	int q=(p<nw) ? p : p-nw;
+	if (p==nw)
+	{
+		putchar(c);
+		putchar(c);
+	}
+	else if (q%NCOLLINE==0)
+		putchar(c);
+}
+
 // summarize analysis results for a list of curve properties
 void Report(CurveProp *Prop, int N)
 {	
-	int i, j, k, l, e;
+	int i, j, p, k, l, e, nw;
+	int order[NIVF];
 	FLAGLIST FlagList;
 	char *WLAB="|Warnings";
 	char *ELAB="Errors";
@@ -418,6 +455,7 @@ void Report(CurveProp *Prop, int N)
 		}
 	}	
 	SortErrWarn(&FlagList);
+	nw=ReportOrder(order);
 	/* create result table */
 	printf("\n************************************************************************\n");
 	printf(  "*                            Analysis Report:                          *\n");
@@ -430,88 +468,45 @@ void Report(CurveProp *Prop, int N)
 	printf(  "Flag | Code       | Err |                 Error Message                 \n");
 	printf(  "-----+------------+-----+-----------------------------------------------\n");
 	for (i=0;i<NIVF;i++)
-	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;
-		if (i>=NIVWARN)
-			printf("%c    | 0x%08x | yes | %s\n", c, FLAG_CODE(i), Fmessage(i));
-		else
-			printf("%c    | 0x%08x | no  | %s\n", c, FLAG_CODE(i), Fmessage(i));
-	}
-	for (;i<NIVF;i++)
-	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;
-		printf("%c    | 0x%08x | no  | %s\n", c, FLAG_CODE(i), Fmessage(i));
-	}
+		printf("%c    | 0x%08x | %s | %s\n", FlagLetter(i), FLAG_CODE(i), Fiserror(i) ? "yes" : "no ", Fmessage(i));
 		
 	printf(  "-----+------------+---+-------------------------------------------------\n\n");
 	printf(  "Result Table:          ");
 	i=0;
-	for (j=1;j<NIVF;j++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (j==NIVWARN)
+		if (p==nw)
 		{
 			printf("||");
 			s=ELAB;
 			i=0;
 		}
-		else if (j%NCOLLINE==1)
+		else if (((p<nw) ? p : p-nw)%NCOLLINE==0)
 		{
 			if (s[i])
-			{
-				putchar(s[i]);
-				i++;
-			}
+				putchar(s[i++]);
 			else
 				putchar(' ');
-				
 		}	
 		if (s[i])
-		{
-			putchar(s[i]);
-			i++;
-		}
+			putchar(s[i++]);
 		else
 			putchar(' ');
 	}
 	putchar('\n');
 	
 	printf(  "---------------------+-");
-	for (j=1;j<NIVF;j++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (j==NIVWARN)
-			printf("++");
-		else if (j%NCOLLINE==1)
-			printf("+");	
+		ColSep(p, nw, '+');
 		printf("-");		
 	}
 	printf(  "\n");
-	printf(  " Count  | Code       ");
-	for (i=0;i<NIVF;i++)
+	printf(  " Count  | Code       |%c", FlagLetter(0));
+	for (p=0;p<NIVF-1;p++)
 	{
-		char c;
-		int m;
-		m=i%52;
-		if (m<26)
-			c='a'+m;
-		else
-			c='A'+m-26;	
-		if (i==NIVWARN)
-			printf("||");
-		else if ((i%NCOLLINE==1)||(i==0))
-			printf("|");
-		printf("%c", c);
+		ColSep(p, nw, '|');
+		printf("%c", FlagLetter(order[p]));
 	}
 	printf("\n");
 	k=0; // flaged curve counter
@@ -523,12 +518,9 @@ void Report(CurveProp *Prop, int N)
 		{
 			printf("--------+------------");
 			printf("+-");
-			for (j=1;j<NIVF;j++)
+			for (p=0;p<NIVF-1;p++)
 			{
-				if (j==NIVWARN)
-					printf("++");
-				else if (j%NCOLLINE==1)
-					printf("+");	
+				ColSep(p, nw, '+');
 				printf("-");		
 			}
 			printf("\n");
@@ -544,19 +536,12 @@ void Report(CurveProp *Prop, int N)
 			printf("|X");
 		else
 			printf("| ");
-		for (j=1;j<NIVF;j++)
+		for (p=0;p<NIVF-1;p++)
 		{
-			if (j==NIVWARN)
-				printf("||");
-			else if (j%NCOLLINE==1)
-				printf("|");	
+			j=order[p];
+			ColSep(p, nw, '|');
 			if (ISFLAG(FlagList.F[i].flag,j))
-			{
-				if (j>=NIVWARN)
-					printf("!");
-				else
-					printf("X");
-			}
+				printf(Fiserror(j) ? "!" : "X");
 			else
 				printf(" ");
 		}
@@ -564,12 +549,9 @@ void Report(CurveProp *Prop, int N)
 		l++;	
 	}
 	printf("--------+------------+-");
-	for (i=1;i<NIVF;i++)
+	for (p=0;p<NIVF-1;p++)
 	{
-		if (i==NIVWARN)
-			printf("++");
-		else if (i%NCOLLINE==1)
-			printf("+");	
+		ColSep(p, nw, '+');
 		printf("-");		
 	}		
 	printf("\n");
@@ -854,8 +836,16 @@ curve *pv_craze_curvemodel(generic_pars *pars, int N, int M)
  *  2: set N=1 and M=m
  * 		translate one IV to m conditions
  */
+/* check the interpolation model for the IEC60891 translation */
+static int IEC_model_ok(MODEL_TYPE model)
+{
+	if ((model==M_PVSPLINE)||(model==M_PVBEZIER))
+		return 1;
+	fprintf(stderr,"ERROR: IEC60891 translation supports the PV-spline and PV-Bezier models only\n");
+	return 0;
+}
 curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
-                   double alpha, double beta, double a, double Rs, double kappa)
+                   double alpha, double beta, double a, double Rs, double kappa, MODEL_TYPE model)
 {
 	int i, pc=0, nn;
 	curvepars *Cout;
@@ -863,6 +853,8 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Translate");
 		
 	BarScale(LLEN, TICS);
+	if (!IEC_model_ok(model))
+		return NULL;
 	nn=N;
 	if (M>nn)
 		nn=M;
@@ -874,7 +866,7 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 	for (i=0;i<nn;i++)
 	{
 		generic_pars P, O;
-		P.TYPE=M_PVSPLINE;
+		P.TYPE=model;
 		P.pars[0]=pars[i%N].Voc;
 		P.pars[1]=pars[i%N].Isc;
 		P.pars[2]=pars[i%N].Vmpp;
@@ -917,15 +909,18 @@ curvepars *pv_craze_translate_IEC60891_v2(curvepars *pars, double *G1, double *T
 
 
 
-curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
-                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa)
+/* v3 translation, rho!=0 gives the RsG-modified v3 with Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd) */
+static curvepars *translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, MODEL_TYPE model, char *head)
 {
 	int i, pc=0, nn;
 	curvepars *Cout;
 	if (pvcraze_verbose&VERB_HEAD)
-		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Translate");
+		pvcraze_PrintHead(N, head);
 		
 	BarScale(LLEN, TICS);
+	if (!IEC_model_ok(model))
+		return NULL;
 	nn=N;
 	if (M>nn)
 		nn=M;
@@ -937,7 +932,7 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 	for (i=0;i<nn;i++)
 	{
 		generic_pars P, O;
-		P.TYPE=M_PVSPLINE;
+		P.TYPE=model;
 		P.pars[0]=pars[i%N].Voc;
 		P.pars[1]=pars[i%N].Isc;
 		P.pars[2]=pars[i%N].Vmpp;
@@ -948,7 +943,7 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 		P.pars[7]=pars[i%N].Iqmp2;
 		P.pars[8]=pars[i%N].Gsc;
 		P.pars[9]=pars[i%N].Roc;
-		O=IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, Vocstd, T1[i%N], T2[i%M], Tstd, G1[i%N], G2[i%M], Gstd, &DefaultMODSET);
+		O=IEC60891_v3(P, alpha, beta, B1, B2, Rs, kappa, rho, Vocstd, T1[i%N], T2[i%M], Tstd, G1[i%N], G2[i%M], Gstd, &DefaultMODSET);
 		Cout[i].Voc=O.pars[0];
 		Cout[i].Isc=O.pars[1];
 		Cout[i].Vmpp=O.pars[2];
@@ -978,6 +973,20 @@ curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T
 	return Cout;
 }
 
+curvepars *pv_craze_translate_IEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, MODEL_TYPE model)
+{
+	return translate_IEC60891_v3(pars, G1, T1, N, G2, T2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, 0.0, model,
+		"Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Translate");
+}
+
+curvepars *pv_craze_translate_RsGmodIEC60891_v3(curvepars *pars, double *G1, double *T1, int N, double *G2, double *T2, int M, 
+                   double Vocstd, double Tstd, double Gstd, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, MODEL_TYPE model)
+{
+	return translate_IEC60891_v3(pars, G1, T1, N, G2, T2, M, Vocstd, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, model,
+		"Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - RsG-modified IEC60891 v3 Translate");
+}
+
 MODELSET FitIECMODSET = {
 	M_NONE,
 	1000,				// max iteration for basic fitting algorithm (if applicale)
@@ -990,7 +999,7 @@ MODELSET FitIECMODSET = {
 };
 
 curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off)
+                   double *alpha, double *beta, double *a, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1001,13 +1010,15 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 	if (pvcraze_verbose&VERB_HEAD)
 		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v2 (2009) Fit");
 	
+	if (!IEC_model_ok(model))
+		return Out;
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N,off);
 	if (!n)
 		return Out;
 		
-	P=IEC60891Fit_v2(cc, gg, tt, n, Tstd, Gstd, alpha, beta, a, Rs, kappa, &FitIECMODSET);
+	P=IEC60891Fit_v2(cc, gg, tt, n, Tstd, Gstd, alpha, beta, a, Rs, kappa, model, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -1025,8 +1036,9 @@ curvepars pv_craze_fit_IEC60891_v2(curvepars *pars, double *G, double *T, int N,
 }
 
 
-curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
-                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off)
+/* v3 fit, with rho==NULL the norm, otherwise the RsG-modified v3 with a fitted rho */
+static curvepars fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, int FURTHEST_N, int off, MODEL_TYPE model)
 {
 	curvepars Out={0};
 	generic_pars P;
@@ -1034,15 +1046,21 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	curvepars *cc;
 	int n;
 	if (pvcraze_verbose&VERB_HEAD)
-		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
+		pvcraze_PrintHead(N, rho ? "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - RsG-modified IEC60891 v3 Fit"
+		                         : "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - IEC60891 v3 (2021) Fit");
 	
+	if (!IEC_model_ok(model))
+		return Out;
 	if (!FURTHEST_N)
 		FURTHEST_N=N;
 	n=FurthestSampler(G, T, pars, N, &gg, &tt, &cc, FURTHEST_N, off);
 	if (!n)
 		return Out;
 		
-	P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, &FitIECMODSET);
+	if (rho)
+		P=RsGmodIEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, model, &FitIECMODSET);
+	else
+		P=IEC60891Fit_v3(cc, gg, tt, n, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, model, &FitIECMODSET);
 	Out.Voc  =P.pars[0];
 	Out.Isc  =P.pars[1];
 	Out.Vmpp =P.pars[2];
@@ -1058,6 +1076,18 @@ curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N,
 	free(cc);	
 
 	return Out;
+}
+
+curvepars pv_craze_fit_IEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, int FURTHEST_N, int off, MODEL_TYPE model)
+{
+	return fit_IEC60891_v3(pars, G, T, N, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, NULL, FURTHEST_N, off, model);
+}
+
+curvepars pv_craze_fit_RsGmodIEC60891_v3(curvepars *pars, double *G, double *T, int N, double Tstd, double Gstd,
+                   double *alpha, double *beta, double *B1, double *B2, double *Rs, double *kappa, double *rho, int FURTHEST_N, int off, MODEL_TYPE model)
+{
+	return fit_IEC60891_v3(pars, G, T, N, Tstd, Gstd, alpha, beta, B1, B2, Rs, kappa, rho, FURTHEST_N, off, model);
 }
 
 MODELSET FitDIODEGTMODSET = {

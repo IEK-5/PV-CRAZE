@@ -60,3 +60,11 @@ src/config.h
 src/config.h.in*
 libpvcraze*.tar.gz
 build.sh
+
+############### python package (meson-python)
+/build/
+/builddir/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+*.so

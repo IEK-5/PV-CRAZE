@@ -31,19 +31,41 @@ If you want to install the octave interface use
 
     octave --eval "pkg install -verbose src/octave-pv-craze.tar.gz"
 
-For the python interaface:
+The Python package is built independently of the autotools build: it
+compiles the library sources into its extension module, so it does not need
+the installed library. It does need a C compiler and the GSL and LAPACK
+development files. From the repository root:
 
-    pip install src/
+    pip install .            # or: pip install .[pandas]
 
 You can test the library and the octave and python interfaces by running the tests.
 
     cd tests
     ./runtest.sh
 
+The Python tests alone run with `python3 -m pytest tests/python`.
+
 ## Usage
 
-See DOC.md for details on the library. You can also look at the tests in the tests
-directory for examples.
+Python:
+
+```python
+import pvcraze as pc
+
+res = pc.analyze(V, I, models="PV-Bezier")   # V, I: 1-D arrays of one IV curve
+res.ok, res.flag().messages                  # analysis sanity checks
+res.esp.voc, res.esp.isc, res.esp.ff         # extended solar cell parameters
+model = res.fits["PV-Bezier"].params
+model.iv([0.0, 0.3])                         # evaluate the curve model
+```
+
+Batches work the same way: pass a list of `(n, 2)` arrays and every field
+becomes an array. Everything has docstrings (`help(pc.analyze)`); DOC.md
+has a Python section with an overview and a migration table from the old
+dictionary based API.
+
+See DOC.md for details on the library and the Octave interface. You can also
+look at the tests in the tests directory for examples.
 
  
 ## References

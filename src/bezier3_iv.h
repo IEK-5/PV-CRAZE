@@ -35,7 +35,7 @@
  */
  
 //MODELFLAG PVBEZIER PV-Bezier B3ToCurve B3RMSErr B3DistCurve B3Fit B3Pars B3IV B3VI
-//MODELPARS PVBEZIER Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS PVBEZIER Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 
 curve 			B3ToCurve(generic_pars P, int N, MODELSET *S);
@@ -45,5 +45,9 @@ generic_pars 	B3Fit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		B3Pars(generic_pars P, MODELSET *S);
 double			B3IV(double V, generic_pars P, MODELSET *S);
 double			B3VI(double I, generic_pars P, MODELSET *S);
+
+// IEC60891 Procedure 2 Translation of a PV-Bezier
+generic_pars B3IEC60891_v2(generic_pars P, double alpha, double beta, double a, double Rs, double kappa, double T1, double T2, double G1, double G2, MODELSET *S);
+generic_pars B3IEC60891_v3(generic_pars P, double alpha, double beta, double B1, double B2, double Rs, double kappa, double rho, double Vocstd, double T1, double T2, double Tstd, double G1, double G2, double Gstd, MODELSET *S);
 
 

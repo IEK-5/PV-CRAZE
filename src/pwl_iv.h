@@ -34,7 +34,7 @@
  */
  
 //MODELFLAG PWL PWL PWLToCurve PWLRMSErr PWLDistCurve PWLFit PWLPars PWLIV PWLVI
-//MODELPARS PWL Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
+//MODELPARS PWL Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			PWLToCurve(generic_pars P, int N, MODELSET *S);
 double 			PWLRMSErr(generic_pars P, curve C, MODELSET *S);

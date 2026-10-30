@@ -41,3 +41,12 @@ def diode_curve():
 def rel_dev(a, b):
     """Largest deviation per row, relative to the column means of b."""
     return np.max(np.abs((np.asarray(a) - np.asarray(b)) / np.mean(np.asarray(b), axis=0)), axis=1)
+
+
+def assert_below(dev, th):
+    """Assert all deviations are below th, reporting the rows that are not."""
+    dev = np.asarray(dev)
+    bad = np.flatnonzero(dev > th)
+    assert bad.size == 0, f"{bad.size} rows above {th:g}: " + ", ".join(
+        f"[{i}] {dev[i]:.4g}" for i in bad
+    ) + f" (largest {dev.max():.4g})"

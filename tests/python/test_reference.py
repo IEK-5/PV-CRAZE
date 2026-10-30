@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import pvcraze as pc
-from conftest import load, rel_dev
+from conftest import assert_below, load, rel_dev
 
 TH = 1e-2
 DIODE_SPEC = pc.FitSpec("Diode", refine_tol=0.6e-3, population=200, max_iter=4000)
@@ -24,7 +24,7 @@ def test_analyze_reference_esp_and_flags(measured_curves):
     res = pc.analyze(measured_curves)
     assert res.is_batch and len(res) == len(measured_curves)
     ref = load("refesp1.dat")
-    assert np.sum(rel_dev(np.asarray(res.esp), ref[:, :10]) > TH) == 0
+    assert_below(rel_dev(np.asarray(res.esp), ref[:, :10]), TH)
     ref_flags = load("refflags1.dat")[:, 0]
     np.testing.assert_array_equal(res.flags, ref_flags.astype(np.int64))
 
@@ -55,7 +55,7 @@ def test_diode_gt_translation_reference(gt_data):
         pc.ModelParams("Diode", i0=I0, nkt=nkT, iph=Iph, rs=Rs, rsh=Rsh), alpha=1e-3, ea=0.8
     )
     esp = gt.esp(T=T, G=G)
-    assert np.sum(rel_dev(np.asarray(esp), ref) > TH) == 0
+    assert_below(rel_dev(np.asarray(esp), ref), TH)
 
 
 @pytest.mark.parametrize("name", list(MODELS))
@@ -66,7 +66,7 @@ def test_fit_model_reference(gt_data, name):
     ref = load(f"ref{name}.dat")
     # relative to the mean of the model ESP, as in the original test
     dev = np.max(np.abs((ref - np.asarray(model_esp)) / np.mean(np.asarray(model_esp), axis=0)), axis=1)
-    assert np.sum(dev > TH) == 0
+    assert_below(dev, TH)
 
 
 @pytest.mark.parametrize("name", list(MODELS))
@@ -74,7 +74,7 @@ def test_model_rmse_against_bezier_curves(gt_data, name):
     _, _, esp = gt_data
     curves = pc.fit_model(esp, "PV-Bezier").params.curve(100)
     fit = pc.fit_model(esp, MODELS[name])
-    assert np.sum(fit.params.rmse(curves) > TH) == 0
+    assert_below(fit.params.rmse(curves), TH)
 
 
 def _dist(esp1, esp2):

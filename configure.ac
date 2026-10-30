@@ -2,11 +2,13 @@
 m4_define([pvcraze_version], m4_esyscmd_s([cat VERSION]))
 AC_INIT([libpvcraze], [pvcraze_version])
 
-# interface version 
-m4_define([pvcraze_major],   [1])
-m4_define([pvcraze_revision],[0])
-m4_define([pvcraze_patch],   [1])
-version_info="pvcraze_major:pvcraze_revision:pvcraze_patch"
+# libtool interface version (current:revision:age), passed to -version-info.
+# Incompatible API/ABI change: current+1, revision=0, age=0.
+# Compatible additions: current+1, revision=0, age+1. Bug fixes only: revision+1.
+m4_define([pvcraze_lt_current],  [2])
+m4_define([pvcraze_lt_revision], [0])
+m4_define([pvcraze_lt_age],      [0])
+version_info="pvcraze_lt_current:pvcraze_lt_revision:pvcraze_lt_age"
 AC_SUBST([version_info])
 
 

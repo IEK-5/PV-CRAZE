@@ -1,0 +1,62 @@
+name: Wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "meson.build"
+      - "pyproject.toml"
+      - "src/**"
+      - "python/**"
+      - ".github/workflows/wheels.yml"
+      - ".github/scripts/**"
+
+jobs:
+  wheels:
+    name: Wheels ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest      # manylinux x86_64
+          - ubuntu-24.04-arm   # manylinux aarch64
+          - macos-15-intel     # macOS x86_64
+          - macos-14           # macOS arm64
+          - windows-latest     # Windows AMD64
+    steps:
+      - uses: actions/checkout@v4
+
+      # gcc, GSL >= 2.2 (gsl_multifit_nlinear) and OpenBLAS (LAPACK) for the
+      # UCRT runtime that python.org Python also uses.
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gsl
+            mingw-w64-ucrt-x86_64-openblas
+
+      # Put the UCRT64 toolchain first, and Git's bash (needed by the header
+      # generator scripts) ahead of the WSL bash in System32.
+      - name: Add toolchain to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "C:\Program Files\Git\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      # Linux and macOS install their dependencies in cibuildwheel's
+      # before-all (.github/scripts/install_deps.sh).
+      - uses: pypa/cibuildwheel@v3.2.1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl

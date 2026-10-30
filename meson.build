@@ -20,9 +20,20 @@ m_dep = cc.find_library('m', required: false)
 gsl_dep = dependency('gsl')
 lapack_dep = dependency('lapack', required: false)
 if not lapack_dep.found()
+  # OpenBLAS bundles LAPACK (e.g. MSYS2 on Windows ships no lapack.pc)
+  lapack_dep = dependency('openblas', required: false)
+endif
+if not lapack_dep.found()
   lapack_dep = cc.find_library('lapack')
 endif
 numpy_dep = dependency('numpy')
+
+core_c_args = ['-DNPY_NO_DEPRECATED_API=NPY_1_20_API_VERSION']
+# Python's Windows headers only define MS_WIN64 for MSVC; mingw-w64 needs it
+# explicitly or Py_ssize_t and friends come out 32-bit.
+if host_machine.system() == 'windows' and cc.get_id() == 'gcc' and host_machine.cpu_family() == 'x86_64'
+  core_c_args += '-DMS_WIN64'
+endif
 
 lib_sources = [
   'emalloc.c', 'curve.c', 'fitmodels.c', 'curiosity.c', 'Error.c',
@@ -79,7 +90,7 @@ py.extension_module(
   model_gen,
   flag_gen,
   dependencies: [numpy_dep, gsl_dep, lapack_dep, m_dep],
-  c_args: ['-DNPY_NO_DEPRECATED_API=NPY_1_20_API_VERSION'],
+  c_args: core_c_args,
   gnu_symbol_visibility: 'hidden',
   install: true,
   subdir: 'pvcraze',

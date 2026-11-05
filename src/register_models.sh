@@ -2,7 +2,7 @@
 
 # register models
 # searches the header files for commentlines following the pattern:
-# // MODEL NAME FIT-ROUTINE CURVE-ROUTINE ERR-ROUTINE SOLPAR 
+# // MODELFLAG ID NAME TOCURVE AREAERR DISTCURVE FIT PARS IV VI SAMPLE
 #
 # it generates a table with keywords and functions in parsedef.h"
 FILE="models.h"
@@ -40,21 +40,24 @@ echo '} MODEL_TYPE;' >>$FILE
 
 echo "#endif /*MODELS_H*/" >>  $FILE
 
-echo '/* all models are required to provide 6 standard functions '>>$FILE2
-echo ' * RMSErrFunc:  compute erucleadian distance between a model and a curve'>>$FILE2
+echo '/* all models are required to provide 8 standard functions '>>$FILE2
+echo ' * AreaErrFunc: compute the area distance between a model (reference) and a curve'>>$FILE2
+echo ' * CurveDistFunc: point wise distance of a curve to the model'>>$FILE2
+echo ' * SampleFunc:  sample the model on a fixed grid of its parametric variable'>>$FILE2
 echo ' * ToCurveFunc: allocates and fills a curve wsith a modeled IV'>>$FILE2
 echo ' * FitFunc:     parameterized the model given a set of curvepars '>>$FILE2
 echo ' * ParsFunc:    Compute solar cell parameter of the curve model'>>$FILE2
 echo ' * IVFunc:      Compute current for a given voltage '>>$FILE2
 echo ' * VIFunc:      Compute voltage for a given current'>>$FILE2
 echo ' */'>>$FILE2
-echo 'typedef double			(*RMSErrFunc)	(generic_pars P, curve C, MODELSET *S);				// cumpute error model vs curve'>>$FILE2
+echo 'typedef double			(*AreaErrFunc)	(generic_pars P, curve C, MODELSET *S);				// cumpute error model vs curve'>>$FILE2
 echo 'typedef curve				(*CurveDistFunc)	(generic_pars P, curve C, MODELSET *S);			// cumpute error model vs curve'>>$FILE2
 echo 'typedef curve 			(*ToCurveFunc)	(generic_pars P, int N, MODELSET *S);				// compute a curve from model parameters'>>$FILE2
 echo 'typedef generic_pars 	(*FitFunc)		(curvepars par, curve C, double *Efit, MODELSET *S);	// fit model to curve parameters'>>$FILE2
 echo 'typedef curvepars 		(*ParsFunc)		(generic_pars, MODELSET *S);							// compute curve parameters from model'>>$FILE2
 echo 'typedef double			(*IVFunc)	(double V, generic_pars P, MODELSET *S);				// current vs voltage'>>$FILE2
 echo 'typedef double			(*VIFunc)	(double I, generic_pars P, MODELSET *S);				// current vs voltage'>>$FILE2
+echo 'typedef curve			(*SampleFunc)	(generic_pars P, int N, MODELSET *S);				// model sampled on a fixed parametric grid'>>$FILE2
 
 
 echo '/* typedef for the model register */'>>$FILE2
@@ -62,19 +65,20 @@ echo 'typedef struct {'>>$FILE2
 echo '	MODEL_TYPE	TYPE;'>>$FILE2
 echo '	char * name;'>>$FILE2
 echo '	ToCurveFunc CURVE;'>>$FILE2
-echo '	RMSErrFunc 	RMS;'>>$FILE2
+echo '	AreaErrFunc 	ERR;'>>$FILE2
 echo '	CurveDistFunc 	DIST;'>>$FILE2
 echo '	FitFunc		FIT;'>>$FILE2
 echo '	ParsFunc	PARS;'>>$FILE2
 echo '	IVFunc		IV;'>>$FILE2
 echo '	VIFunc		VI;'>>$FILE2
+echo '	SampleFunc	SAMPLE;'>>$FILE2
 echo '} MODEL;'>>$FILE2
 
 
 echo '/* the model register */'>>$FILE2
 echo 'MODEL MODEL_TABLE[] = {' >>$FILE2
-awk '{print "\t{M_"$2", \""$3"\", &"$4", &"$5", &"$6", &"$7", &"$8", &"$9", &"$10"},"}' tmpflags>>$FILE2
-echo "	{M_NONE, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}">>$FILE2
+awk '{print "\t{M_"$2", \""$3"\", &"$4", &"$5", &"$6", &"$7", &"$8", &"$9", &"$10", &"$11"},"}' tmpflags>>$FILE2
+echo "	{M_NONE, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}">>$FILE2
 echo "};">>$FILE2
 
 echo '/* generate a list with parameter names */'>>$FILE2

@@ -69,7 +69,11 @@ typedef struct {
  */
 
 curve 			pv_craze_g_tocurve(generic_pars P, int N);
-double 			pv_craze_g_rmse(generic_pars P, curve C);
+/* area between curves within V>=0, I>=0, normalized by Voc*Isc of the
+ * reference (the model, the first model or the first curve) */
+double 			pv_craze_g_error(generic_pars P, curve C);
+double 			pv_craze_g_modeldist(generic_pars R, generic_pars P);
+double 			pv_craze_g_curvedist(curve R, curve C);
 curve 			pv_craze_g_distcurve(generic_pars P, curve C);
 generic_pars 	pv_craze_g_fit(MODEL_TYPE T, curvepars par, curve C, double *Efit);
 curvepars 		pv_craze_g_pars(generic_pars);
@@ -83,5 +87,6 @@ double 			pv_craze_VI(double I, generic_pars P);
 MODEL_TYPE LookupModel(char *word);
 void AddModel(MODEL_LIST *L, const char *spec);
 void FitModels(MODEL_LIST *L, curvepars par, curve C, int R);
+curve ESPCurve(curvepars par, MODELSET *S);
 int PropIndex(MODEL_TYPE T);
 void FreeList(MODEL_LIST *L);

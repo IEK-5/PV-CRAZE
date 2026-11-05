@@ -230,8 +230,9 @@ class IEC60891v2(_Translation):
         The fit looks for the coefficients that best predict the measured ESP
         from one reference ESP: for given coefficients the reference ESP is the
         mean of the measured ESP translated to ``t_ref``, ``g_ref``, and the fit
-        minimizes the distance of the reference, translated back to each
-        measured condition, to the measured curve. The optimization uses at
+        minimizes the area distance (see :func:`pvcraze.curve_distance`) of
+        the reference, translated back to each measured condition, to the
+        curve of the measured ESP. The optimization uses at
         most 128 evenly spaced conditions; the reference ESP uses all.
 
         Parameters

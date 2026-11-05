@@ -60,6 +60,8 @@ CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S);
 // evaluate model and model errors
 curve *pv_craze_curvemodel(generic_pars *pars, int N, int M);
 double *pv_craze_error(generic_pars *pars, curve *C, int N);
+double *pv_craze_curvedist(curve *R, curve *C, int N);
+double *pv_craze_modeldist(generic_pars *R, generic_pars *P, int N);
 curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N);
 
 /* **************************************************

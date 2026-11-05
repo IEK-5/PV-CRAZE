@@ -32,11 +32,12 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG PC PC PCToCurve PCRMSErr PCDistCurve PCFit PCPars PCIV PCVI
+//MODELFLAG PC PC PCToCurve PCAreaErr PCDistCurve PCFit PCPars PCIV PCVI PCSample
 //MODELPARS PC Voc Isc Vmpp Impp eta
 
 curve 			PCToCurve(generic_pars P, int N, MODELSET *S);
-double 			PCRMSErr(generic_pars P, curve C, MODELSET *S);
+double 			PCAreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			PCSample(generic_pars P, int N, MODELSET *S);
 curve 			PCDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	PCFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		PCPars(generic_pars P, MODELSET *S);

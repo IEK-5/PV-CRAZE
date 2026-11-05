@@ -33,11 +33,12 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG PWL PWL PWLToCurve PWLRMSErr PWLDistCurve PWLFit PWLPars PWLIV PWLVI
+//MODELFLAG PWL PWL PWLToCurve PWLAreaErr PWLDistCurve PWLFit PWLPars PWLIV PWLVI PWLSample
 //MODELPARS PWL Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			PWLToCurve(generic_pars P, int N, MODELSET *S);
-double 			PWLRMSErr(generic_pars P, curve C, MODELSET *S);
+double 			PWLAreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			PWLSample(generic_pars P, int N, MODELSET *S);
 curve 			PWLDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	PWLFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		PWLPars(generic_pars P, MODELSET *S);

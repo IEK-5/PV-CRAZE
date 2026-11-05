@@ -33,11 +33,12 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG B2 B2 B2ToCurve B2RMSErr B2DistCurve B2Fit B2Pars B2IV B2VI
+//MODELFLAG B2 B2 B2ToCurve B2AreaErr B2DistCurve B2Fit B2Pars B2IV B2VI B2Sample
 //MODELPARS B2 Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			B2ToCurve(generic_pars P, int N, MODELSET *S);
-double 			B2RMSErr(generic_pars P, curve C, MODELSET *S);
+double 			B2AreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			B2Sample(generic_pars P, int N, MODELSET *S);
 curve 			B2DistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	B2Fit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		B2Pars(generic_pars P, MODELSET *S);

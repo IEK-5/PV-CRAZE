@@ -265,15 +265,23 @@ curve DiodeToCurve(generic_pars P, int N, MODELSET *S)
 	return ModelToCurve	((void *) &par, &diodeIV_i, N, S);
 }
 
-double DiodeRMSErr_i(diodepars P, curve C, MODELSET *S)
+double DiodeAreaErr_i(diodepars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.Voc, P.Isc, (void *) &P, &diodeIV_i, C,S);
+	return AreaErr((void *) &P, &diodeIV_i, C,S);
 }
 
 // Exported Function
-double DiodeRMSErr(generic_pars P, curve C, MODELSET *S)
+double DiodeAreaErr(generic_pars P, curve C, MODELSET *S)
 {
-	return DiodeRMSErr_i(Generic2DiodePars(P, S), C,S);
+	return DiodeAreaErr_i(Generic2DiodePars(P, S), C,S);
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve DiodeSample(generic_pars P, int N, MODELSET *S)
+{
+	diodepars par=Generic2DiodePars(P,S);
+	(void)S;
+	return SampleModel((void *) &par, &diodeIV_i, N);
 }
 
 
@@ -1111,7 +1119,7 @@ generic_pars DiodeFitDE(curvepars par, curve C, double *Efit, MODELSET *S)
 	diodepars P;
 	P=DEParameterize(par,P,S);
 	P=LevenbergMarquardtOptimizer(par,P,S);
-	(*Efit)=DiodeRMSErr_i(P, C,S);
+	(*Efit)=DiodeAreaErr_i(P, C,S);
 	return Diode2GenericPars(P);
 }
 
@@ -1127,12 +1135,12 @@ generic_pars DiodeFit(curvepars par, curve C, double *Efit, MODELSET *S)
 		return Diode2GenericPars(P);
 	P=LevenbergMarquardtOptimizer(par,P,S);
 	//P=OAInitializer(&par, 1e-2, Efit);
-	(*Efit)=DiodeRMSErr_i(P, C,S);
+	(*Efit)=DiodeAreaErr_i(P, C,S);
 	if ((!isfinite(*Efit)||(*Efit>S->oeps))&&(S->fititer))
 	{
 		P=DEParameterize(par,P,S);
 		P=LevenbergMarquardtOptimizer(par,P,S);
-		(*Efit)=DiodeRMSErr_i(P, C,S);
+		(*Efit)=DiodeAreaErr_i(P, C,S);
 	}
 	return Diode2GenericPars(P);
 }
@@ -1152,12 +1160,12 @@ generic_pars DiodeFitGqmp(curvepars par, curve C, double *Efit, MODELSET *S)
 		return Diode2GenericPars(P);
 	P=LevenbergMarquardtOptimizer(par,P,S);
 	//P=OAInitializer(&par, 1e-2, Efit);
-	(*Efit)=DiodeRMSErr_i(P, C,S);
+	(*Efit)=DiodeAreaErr_i(P, C,S);
 	if ((!isfinite(*Efit)||(*Efit>S->oeps))&&(S->fititer))
 	{
 		P=DEParameterize(par,P,S);
 		P=LevenbergMarquardtOptimizer(par,P,S);
-		(*Efit)=DiodeRMSErr_i(P, C,S);
+		(*Efit)=DiodeAreaErr_i(P, C,S);
 	}
 	return Diode2GenericPars(P);
 }
@@ -1235,31 +1243,12 @@ void MedianDiode(curvepars *P, double *G, double *T, int N,
 		free(Rsd);
 		return;
 	}
-	C.N=5;
-	if((C.P=Emalloc(C.N*sizeof(point)))==NULL)
-	{
-		free(I0d);
-		free(NnkTd);
-		free(Iphd);
-		free(Rsd);
-		free(Rshd);
-		return;
-	}
-	C.P[0].x=0.0;
-	C.P[4].y=0.0;
-	
 	for (i=0;i<N;i++)
 	{
-		C.P[0].y=P[i].Isc;
-		C.P[1].x=P[i].Vqmp1;
-		C.P[1].y=P[i].Iqmp1;
-		C.P[2].x=P[i].Vmpp;
-		C.P[2].y=P[i].Impp;
-		C.P[3].x=P[i].Vqmp2;
-		C.P[3].y=P[i].Iqmp2;
-		C.P[4].x=P[i].Voc;
-			
+		// the curve defined by the ESP
+		C=ESPCurve(P[i], S);
 		gp=DiodeFit(P[i], C, &err, S);
+		free(C.P);
 		I0d[i]   = gp.pars[0];
 		NnkTd[i] = gp.pars[1];
 		Iphd[i]  = gp.pars[2];
@@ -1276,7 +1265,6 @@ void MedianDiode(curvepars *P, double *G, double *T, int N,
 	free(NnkTd);
 	free(Rsd);
 	free(Rshd);
-	free(C.P);
 }
 
 /* the optimization parameter set:

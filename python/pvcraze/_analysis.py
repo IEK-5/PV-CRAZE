@@ -26,10 +26,12 @@ class FitResult:
     params:
         The fitted :class:`ModelParams` (single or batch, like the input).
     error:
-        Fit error per curve (float or array), dimensionless: the RMS distance
-        in the (V/Voc, I/Isc) plane. From :func:`analyze` it is measured
-        against the analysed part of the IV curve; from :func:`fit_model`,
-        where no curve is available, against the five ESP key points.
+        Fit error per curve (float or array), dimensionless: the area
+        between the model and the curve within V >= 0, I >= 0, divided by
+        Voc*Isc of the model (see :func:`pvcraze.curve_distance`). From
+        :func:`analyze` it is measured against the analysed IV curve; from
+        :func:`fit_model`, where no curve is available, against the PV-Bezier
+        curve through the ESP.
     spec:
         The :class:`FitSpec` used.
     """
@@ -281,7 +283,7 @@ def fit_model(esp: Any, model: ModelLike = "PV-Bezier", **options: Any) -> FitRe
     -------
     FitResult
         ``.params`` has the same single/batch form as ``esp``. ``.error`` is
-        measured against the five ESP key points.
+        measured against the PV-Bezier curve through the ESP.
 
     Examples
     --------

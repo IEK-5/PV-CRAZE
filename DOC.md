@@ -5,7 +5,7 @@ The PV-CRAZE library is not a standalone tool but rather a library with bindings
 The PV-CRAZE library provides a collection of routines:
  
 ### pvcraze_analyze
-This routine is the core of PV-CRAZE. It analyzes a list of IV curves and returns the corresponding ESP. In addition the routine returns flags. The flags are binary encoded and can signal various problem with the IV. The flags distinguish between warnings (results are a-typical or inaccurate) and errors (not possible to determine meaningful parameters). Optionally this routine may be used to directly fit a set of curve models to the ESP and compute the RMS error w.r.t. the provided IV curves. See the section on pvcraze_modelfit for a description of supported models. If models are provided, the routine also returns generic parameters (a unified parameter array for all supported curve models), and fit errors. Furthermore, one can specify various numerical settings to specify how the IV curves are analyzed.
+This routine is the core of PV-CRAZE. It analyzes a list of IV curves and returns the corresponding ESP. In addition the routine returns flags. The flags are binary encoded and can signal various problem with the IV. The flags distinguish between warnings (results are a-typical or inaccurate) and errors (not possible to determine meaningful parameters). Optionally this routine may be used to directly fit a set of curve models to the ESP and compute the fit error (the area distance, see [Curve distance](#curve-distance)) w.r.t. the provided IV curves. See the section on pvcraze_modelfit for a description of supported models. If models are provided, the routine also returns generic parameters (a unified parameter array for all supported curve models), and fit errors. Furthermore, one can specify various numerical settings to specify how the IV curves are analyzed.
 
 The numerical settings for the curve analysis are:
 - Spike Filter
@@ -106,7 +106,15 @@ Reconstruct an IV from generic parameters. Takes an array with generic parameter
 
 ### pvcraze_modelerror
 
-Compute RMS error between a modeled curve and and experimental curve. 
+Compute the area distance between a modeled curve and an experimental curve (see [Curve distance](#curve-distance)).
+
+### pvcraze_curvedistance
+
+Compute the area distance between two (experimental) IV curves.
+
+### pvcraze_modeldistance
+
+Compute the area distance between the curves of two sets of model parameters.
 
 ### pvcraze_errorcurve
 
@@ -133,6 +141,37 @@ Translate ESP using the IEC60891 v3 norm model. Takes as input ESP, input temper
 A modification of the IEC60891 v3 model that is **not** part of the norm, for outdoor data: the series resistance depends on the irradiance, Rs(G,T) = Rs + kappa (T-Tstd) + rho ln(G/Gstd). The arguments are those of the v3 routines; the fit returns rho as an extra output after kappa, the translation takes rho as an extra argument after kappa. With rho=0 the results equal those of the v3 routines. With the PV-spline the fit starts from the v3 fit.
 
 All IEC60891 routines take an optional last argument naming the interpolation model used for the translation: "PV-spline" (default) or "PV-Bezier". The IEC60891 map of the points of a curve is affine and a Bézier curve is invariant under affine maps, so a PV-Bezier curve is translated exactly. With the PV-spline only the knots and their slopes are translated, which for curves with a high series resistance occasionally leads to large errors in the translated mpp. Use the same model for fitting and translating.
+
+### Curve distance
+
+All distances between IV curves (fit errors, `pvcraze_modelerror`,
+`pvcraze_curvedistance`, `pvcraze_modeldistance`, the IEC60891 fit objective)
+use the same metric: the area between a reference curve and a second curve
+within the active range (V >= 0, I >= 0), normalized by Voc*Isc of the
+reference,
+
+    D = 1/(Voc_ref Isc_ref) * integral_0^Vmax | I_ref+(V) - I+(V) | dV
+
+where I+ is the current clipped at zero between V = 0 and the curve's open
+circuit voltage and zero beyond, and Vmax the larger of the two open circuit
+voltages. D is 0 for identical curves and 1 when the second curve has no
+active range while the reference fills the rectangle Voc*Isc.
+
+- A sampled curve is the piecewise linear current I(V) through its points
+  (sorted by voltage). The first and last segment are extended linearly, so
+  a curve that stops short of V = 0 or Voc still covers the active range.
+  The integral is exact for the piecewise linear curves.
+- A model is sampled on a fixed grid of 1024 points of its parametric
+  variable (short to open circuit), which keeps the distance a smooth
+  function of the model parameters. The sampling error is below 1e-5.
+- For a model and a curve the model is the reference.
+- When a model is fitted to ESP only (no measured curve), the error is
+  measured against the PV-Bezier curve through the ESP.
+
+Unlike the RMS of point-wise distances used before, the area does not depend
+on how densely, or how unevenly, a curve is sampled: extra points in one part
+of the curve do not change its weight. `pvcraze_errorcurve` still returns the
+point-wise (orthogonal) distances as a diagnostic.
 
 ## Python Interface
 The Python package is a separate, object based interface; it does not mirror
@@ -202,9 +241,9 @@ You may look at the scripts in the test directory for examples.
         • modelpar: Cell array with model parameters (one column per model,
           one row per Epar row)
         • err: Fit error array (one column per model, one row per esp 
-          row). Note that, as no IV characteristics are provided, the 
-          fit error is computed with respect to the 5 key points of the 
-          esp.
+          row). Note that, as no IV characteristics are provided, the
+          fit error is computed with respect to the PV-Bezier curve
+          through the esp.
           
 ### pvcraze_curvemodel
      [IV] = pvcraze_curvemodel (modelpar, N)
@@ -234,8 +273,9 @@ You may look at the scripts in the test directory for examples.
 
 ### pvcraze_modelerror
      [err] = pvcraze_modelerror (modelpar, IV)
-     pvcraze_modelerror computes a RMS distance between IV curves and 
-     corresponding generic model parameters
+     pvcraze_modelerror computes the area distance between IV curves and
+     corresponding generic model parameters: the area between the curve
+     and the model within V>=0, I>=0, normalized by Voc*Isc of the model
 
      Input:
         • modelpar: Cell array with model parameters. Each cell must 
@@ -245,7 +285,33 @@ You may look at the scripts in the test directory for examples.
         • IV: Cell array with IV curves corresponding to the MPar
           variable
      Output:
-        • D: Array with RMS distances for each IV an model parameter set
+        • D: Array with area distances for each IV an model parameter set
+
+### pvcraze_curvedistance
+     [dist] = pvcraze_curvedistance (IVref, IV)
+     pvcraze_curvedistance computes the area distance between reference IV
+     curves and IV curves: the area between the curves within V>=0, I>=0,
+     normalized by Voc*Isc of the reference curve.
+
+     Input:
+        • IVref: Cell array with reference IV curves (n x 2, columns V, I)
+        • IV: Cell array (same size) with the IV curves to compare
+     Output:
+        • dist: Array with the area distances (NaN for a curve with less
+          than two points or a reference without active range)
+
+### pvcraze_modeldistance
+     [dist] = pvcraze_modeldistance (modelparref, modelpar)
+     pvcraze_modeldistance computes the area distance between the curves of
+     reference model parameters and model parameters, normalized by Voc*Isc
+     of the reference model.
+
+     Input:
+        • modelparref: Cell array with reference model parameters (1x10
+          PV-Bezier ESP or 1x11 generic parameters)
+        • modelpar: Cell array (same size) with model parameters
+     Output:
+        • dist: Array with the area distances
 
 
 
@@ -582,6 +648,18 @@ curve *pv_craze_curvemodel(generic_pars *pars, int N, int M);
 
 #### pv_craze_error
 double *pv_craze_error(generic_pars *pars, curve *C, int N);
+	The area distance of each curve C[i] to the model pars[i], normalized by
+	Voc*Isc of the model (see [Curve distance](#curve-distance)).
+
+#### pv_craze_curvedist
+double *pv_craze_curvedist(curve *R, curve *C, int N);
+	The area distance of each curve C[i] to the reference curve R[i],
+	normalized by Voc*Isc of the reference curve.
+
+#### pv_craze_modeldist
+double *pv_craze_modeldist(generic_pars *R, generic_pars *P, int N);
+	The area distance of each model P[i] to the reference model R[i],
+	normalized by Voc*Isc of the reference model.
 
 #### pv_craze_errorcurve
 curve *pv_craze_errorcurve(generic_pars *pars, curve *C, int N);
@@ -609,7 +687,15 @@ it starts from the v3 fit (rho=0) and takes about twice as long.
 
 #### pv_craze_g_pars
 
-#### pv_craze_g_rmse
+#### pv_craze_g_error
+double pv_craze_g_error(generic_pars P, curve C);
+	Single curve version of pv_craze_error (formerly pv_craze_g_rmse).
+
+#### pv_craze_g_curvedist
+double pv_craze_g_curvedist(curve R, curve C);
+
+#### pv_craze_g_modeldist
+double pv_craze_g_modeldist(generic_pars R, generic_pars P);
 
 #### pv_craze_g_tocurve
 
@@ -741,8 +827,9 @@ names used as attributes of `ModelParams`:
 
 `ModelParams` can also be built by hand, e.g.
 `pc.ModelParams("Diode", i0=1e-10, nkt=0.03, iph=0.035, rs=0.1, rsh=700)`,
-and provides `iv(V)`, `vi(I)`, `curve(npoints)`, `esp()`, `rmse(curves)` and
-`distance(curves)`.
+and provides `iv(V)`, `vi(I)`, `curve(npoints)`, `esp()`, `error(curves)` and
+`distance(curves)`. `pc.curve_distance(ref, other)` computes the area distance
+between any two curves or models (see [Curve distance](#curve-distance)).
 
 `FitSpec(model, max_iter=, tol=, population=, eval_max_iter=, eval_tol=,
 refine_tol=, refine=)` replaces the former model specification strings
@@ -804,7 +891,7 @@ same results as `IEC60891v3`, bit for bit. `iec60891.fit` only fits the norm.
 | `modelfit(esp, [spec])` | `fit_model(esp, "Diode", population=200)` |
 | `modelpars([mp])[0]` | `params.esp()` |
 | `curvemodel([mp], N)[0]` | `params.curve(N)` |
-| `modelerror([mp], IV)` | `params.rmse(IV)` |
+| `modelerror([mp], IV)` | `params.error(IV)` (now the area distance, formerly an RMS distance) |
 | `iv(V, mp)`, `vi(I, mp)` | `params.iv(V)`, `params.vi(I)` |
 | `lookupmodel`, `reverselookup` | `pc.Model("name")`, `Model.X.id` |
 | `flagtable()` | `pc.Flag`, `pc.describe_flags(code)` |

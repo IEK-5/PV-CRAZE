@@ -33,11 +33,12 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG APWL APWL APWLToCurve APWLRMSErr APWLDistCurve APWLFit APWLPars APWLIV APWLVI
+//MODELFLAG APWL APWL APWLToCurve APWLAreaErr APWLDistCurve APWLFit APWLPars APWLIV APWLVI APWLSample
 //MODELPARS APWL Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 curve 			APWLToCurve(generic_pars P, int N, MODELSET *S);
-double 			APWLRMSErr(generic_pars P, curve C, MODELSET *S);
+double 			APWLAreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			APWLSample(generic_pars P, int N, MODELSET *S);
 curve 			APWLDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	APWLFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		APWLPars(generic_pars P, MODELSET *S);
@@ -53,11 +54,12 @@ double 			APWLVI(double I, generic_pars P, MODELSET *S);
  * curvepars APWLPars(generic_pars P, MODELSET *S)
  * apwlpars Generic2APWLPars(generic_pars P, MODELSET *S)
  */ 
-//MXODELFLAG SPWL SPWL SPWLToCurve SPWLRMSErr SPWLDistCurve SPWLFit APWLPars SPWLIV SPWLVI
+//MXODELFLAG SPWL SPWL SPWLToCurve SPWLAreaErr SPWLDistCurve SPWLFit APWLPars SPWLIV SPWLVI SPWLSample
 //MXODELPARS SPWL Voc Isc Vmpp Impp Vqmp- Iqmp+ Vqmp- Iqmp+ Gsc Roc
 
 curve 			SPWLToCurve(generic_pars P, int N, MODELSET *S);
-double 			SPWLRMSErr(generic_pars P, curve C, MODELSET *S);
+double 			SPWLAreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			SPWLSample(generic_pars P, int N, MODELSET *S);
 curve 			SPWLDistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	SPWLFit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		APWLPars(generic_pars P, MODELSET *S);

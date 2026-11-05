@@ -36,6 +36,7 @@
 #include "curiosity.h"
 #include "curve.h"
 #include "fitmodels.h"
+#include "curvemodel.h"
 #include "model_table.h" // only for fitmodels.h to figure out how to treat a model
 
 MODELSET DefaultMODSET = {
@@ -412,13 +413,44 @@ curve _ToCurve(generic_pars P, int N, MODELSET *S)
 	i=ModelIndex(P.TYPE);
 	return MODEL_TABLE[i].CURVE(P,N,S);
 }
-double 	_RMSErr(generic_pars P, curve C, MODELSET *S)
+double 	_AreaErr(generic_pars P, curve C, MODELSET *S)
 {
 	int i;
 	if (P.TYPE==M_NONE)
 		return NAN;
 	i=ModelIndex(P.TYPE);
-	return MODEL_TABLE[i].RMS(P,C,S);
+	return MODEL_TABLE[i].ERR(P,C,S);
+}
+
+// sample a model on a fixed grid of its parametric variable
+curve 	_Sample(generic_pars P, int N, MODELSET *S)
+{
+	int i;
+	if (P.TYPE==M_NONE)
+	{
+		curve C;
+		C.N=0;
+		C.P=NULL;
+		return C;
+	}
+	i=ModelIndex(P.TYPE);
+	return MODEL_TABLE[i].SAMPLE(P,N,S);
+}
+
+/* area distance between two models, normalized by the reference model R
+ * (see CurveAreaDist in curvemodel.c) */
+double 	_ModelDist(generic_pars R, generic_pars P, MODELSET *S)
+{
+	curve CR, CP;
+	double d;
+	if ((R.TYPE==M_NONE)||(P.TYPE==M_NONE))
+		return NAN;
+	CR=_Sample(R, AREA_NSAMPLE, S);
+	CP=_Sample(P, AREA_NSAMPLE, S);
+	d=CurveAreaDist(CR, CP);
+	free(CR.P);
+	free(CP.P);
+	return d;
 }
 
 curve 	_DistCurve(generic_pars P, curve C, MODELSET *S)
@@ -480,9 +512,17 @@ curve pv_craze_g_tocurve(generic_pars P, int N)
 {
 	return _ToCurve(P, N, &DefaultMODSET);
 }
-double 	pv_craze_g_rmse(generic_pars P, curve C)
+double 	pv_craze_g_error(generic_pars P, curve C)
 {
-	return _RMSErr(P, C, &DefaultMODSET);
+	return _AreaErr(P, C, &DefaultMODSET);
+}
+double 	pv_craze_g_modeldist(generic_pars R, generic_pars P)
+{
+	return _ModelDist(R, P, &DefaultMODSET);
+}
+double 	pv_craze_g_curvedist(curve R, curve C)
+{
+	return CurveAreaDist(R, C);
 }
 curve pv_craze_g_distcurve(generic_pars P, curve C)
 {
@@ -506,6 +546,26 @@ double pv_craze_VI(double I, generic_pars P)
 	return _VI(I,P, &DefaultMODSET);
 }
 
+/* The curve defined by a set of ESP when no measured curve is available: the
+ * PV-Bezier model of the ESP, sampled densely. The area distance to a polyline
+ * through the five key points would mostly measure the chords between them. */
+curve ESPCurve(curvepars par, MODELSET *S)
+{
+	generic_pars P;
+	P.TYPE=M_PVBEZIER;
+	P.pars[0]=par.Voc;
+	P.pars[1]=par.Isc;
+	P.pars[2]=par.Vmpp;
+	P.pars[3]=par.Impp;
+	P.pars[4]=par.Vqmp1;
+	P.pars[5]=par.Iqmp1;
+	P.pars[6]=par.Vqmp2;
+	P.pars[7]=par.Iqmp2;
+	P.pars[8]=par.Gsc;
+	P.pars[9]=par.Roc;
+	return B3Sample(P, AREA_NSAMPLE, S);
+}
+
 void FitModels(MODEL_LIST *L, curvepars par, curve C, int R)
 {
 	int i;
@@ -514,19 +574,8 @@ void FitModels(MODEL_LIST *L, curvepars par, curve C, int R)
 	double t;
 	if (C.N==0)
 	{
-		// if no curve is given but we do have ESP, we make a minimal curve out of those
-		Ca.N=5;
-		Ca.P=malloc(5*sizeof(point));
-		Ca.P[0].x=0;
-		Ca.P[0].y=par.Isc;
-		Ca.P[1].x=par.Vqmp1;
-		Ca.P[1].y=par.Iqmp1;
-		Ca.P[2].x=par.Vmpp;
-		Ca.P[2].y=par.Impp;
-		Ca.P[3].x=par.Vqmp2;
-		Ca.P[3].y=par.Iqmp2;
-		Ca.P[4].x=par.Voc;
-		Ca.P[4].y=0;
+		// if no curve is given but we do have ESP, the curve is the one the ESP define
+		Ca=ESPCurve(par, &DefaultMODSET);
 		R=0; // resample makes no sense here
 	}
 	else

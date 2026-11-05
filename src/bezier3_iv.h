@@ -34,12 +34,13 @@
  * but it is also exported beyond the pv_craze scope via fitmodels.h
  */
  
-//MODELFLAG PVBEZIER PV-Bezier B3ToCurve B3RMSErr B3DistCurve B3Fit B3Pars B3IV B3VI
+//MODELFLAG PVBEZIER PV-Bezier B3ToCurve B3AreaErr B3DistCurve B3Fit B3Pars B3IV B3VI B3Sample
 //MODELPARS PVBEZIER Voc Isc Vmpp Impp Vqmp- Iqmp- Vqmp+ Iqmp+ Gsc Roc
 
 
 curve 			B3ToCurve(generic_pars P, int N, MODELSET *S);
-double 			B3RMSErr(generic_pars P, curve C, MODELSET *S);
+double 			B3AreaErr(generic_pars P, curve C, MODELSET *S);
+curve 			B3Sample(generic_pars P, int N, MODELSET *S);
 curve 			B3DistCurve(generic_pars P, curve C, MODELSET *S);
 generic_pars 	B3Fit(curvepars par, curve C, double *Efit, MODELSET *S);
 curvepars 		B3Pars(generic_pars P, MODELSET *S);

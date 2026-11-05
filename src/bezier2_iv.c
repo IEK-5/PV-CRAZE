@@ -246,15 +246,23 @@ curve B2ToCurve(generic_pars P, int N, MODELSET *S)
 	return ModelToCurve	((void *) &par, &B2IV_i, N, S);
 }
 
-double B2RMSErr_i(B2pars P, curve C, MODELSET *S)
+double B2AreaErr_i(B2pars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.Vk[4], P.Ik[0], (void *) &P, &B2IV_i, C,S);
+	return AreaErr((void *) &P, &B2IV_i, C,S);
 }
 
 // Exported Function
-double B2RMSErr(generic_pars P, curve C, MODELSET *S)
+double B2AreaErr(generic_pars P, curve C, MODELSET *S)
 {
-	return B2RMSErr_i(Generic2B2Pars(P), C,S);
+	return B2AreaErr_i(Generic2B2Pars(P), C,S);
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve B2Sample(generic_pars P, int N, MODELSET *S)
+{
+	B2pars par=Generic2B2Pars(P);
+	(void)S;
+	return SampleModel((void *) &par, &B2IV_i, N);
 }
 
 curve B2DistCurve_i(B2pars P, curve C, MODELSET *S)
@@ -324,7 +332,7 @@ generic_pars B2Fit(curvepars par, curve C, double *Efit, MODELSET *S)
 	P.pars[9]=par.Roc;
 	
 	Sd=Generic2B2Pars(P);
-	(*Efit)=B2RMSErr_i(Sd, C, S);
+	(*Efit)=B2AreaErr_i(Sd, C, S);
 	return P;
 }
 

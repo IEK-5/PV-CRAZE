@@ -32,6 +32,7 @@
 #include "emalloc.h"
 #include "curve.h"
 #include "fitmodels.h"
+#include "curvemodel.h"
 
 
 /* Compute curves and curveparameters for a model
@@ -104,20 +105,273 @@ double CurvePointDist(double Voc, double Isc, void * pars, point (*model)(double
 	return POINTDIST2(target,p);
 }
 
-// RMS distance of a curve to a curve model
-double RMSErr(double Voc, double Isc, void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S)
+/* ***********************************************************************
+ * Area distance between two IV curves
+ *
+ * The distance between a reference curve R and a curve C is the area
+ * between them within the active range (V>=0, I>=0), normalized by the
+ * product Voc*Isc of the reference:
+ *
+ *   D = 1/(Voc_R Isc_R) * int_0^Vmax | I_R+(V) - I_C+(V) | dV
+ *
+ * A sampled curve is the piecewise linear current I(V) through its points
+ * (sorted by voltage, points at the same voltage averaged). The first and
+ * last segment are extended linearly, so a curve that does not include V=0
+ * or Voc still covers the active range. I+(V) is the current clipped at
+ * zero for V between 0 and the curve's Voc (the first zero crossing of the
+ * current) and zero beyond. Vmax is the larger of the two Voc's.
+ * Unlike a point wise RMS distance this does not depend on how densely the
+ * curves are sampled. Both curves are linear between the merged set of
+ * break points, so the integral is exact for the sampled curves.
+ * ***********************************************************************/
+
+typedef struct {
+	point *P;		// points sorted by voltage, unique voltages
+	int N;
+	double Voc, Isc;	// end of the active range, current at V=0
+	int i;			// segment of the last evaluation (evaluations go up in V)
+} pline;
+
+static int CmpPointX(const void *a, const void *b)
 {
-	int i;
-	double d=0;
-	if (C.N>0)
+	double x1=((const point *)a)->x, x2=((const point *)b)->x;
+	return (x1>x2)-(x1<x2);
+}
+
+// linear interpolation/extrapolation of segment i at V
+static double SegI(const point *P, int i, double V)
+{
+	return P[i].y+(P[i+1].y-P[i].y)*(V-P[i].x)/(P[i+1].x-P[i].x);
+}
+
+/* current at V (linear in segments, linear extrapolation of the end segments).
+ * Successive calls must have non-decreasing V, the segment index is kept. */
+static double PLineI(pline *L, double V)
+{
+	while ((L->i<L->N-2)&&(V>L->P[L->i+1].x))
+		L->i++;
+	return SegI(L->P, L->i, V);
+}
+
+/* copy, sort and average points at the same voltage. Non-finite points are
+ * dropped. Returns 1 when fewer than two distinct voltages remain. */
+static int InitPLine(curve C, pline *L)
+{
+	int i, j, n;
+	double ys;
+	L->P=NULL;
+	L->N=0;
+	L->i=0;
+	if (C.N<2)
+		return 1;
+	if ((L->P=Emalloc(C.N*sizeof(point)))==NULL)
+		return 1;
+	for (i=0, n=0;i<C.N;i++)
+		if (isfinite(C.P[i].x)&&isfinite(C.P[i].y))
+			L->P[n++]=C.P[i];
+	qsort(L->P, n, sizeof(point), CmpPointX);
+	for (i=0, j=0;i<n;j++)
 	{
-		for (i=0;i<C.N;i++)
-		{
-			d+=CurvePointDist(Voc, Isc, pars, model, C.P[i], S);
-		}
-		return sqrt(d/(double)C.N);
+		int k=i;
+		ys=0;
+		while ((k<n)&&(L->P[k].x==L->P[i].x))
+			ys+=L->P[k++].y;
+		L->P[j].x=L->P[i].x;
+		L->P[j].y=ys/(double)(k-i);
+		i=k;
 	}
-	return 0.0;
+	L->N=j;
+	if (L->N<2)
+	{
+		free(L->P);
+		L->P=NULL;
+		L->N=0;
+		return 1;
+	}
+	// short circuit current
+	L->i=0;
+	L->Isc=PLineI(L, 0);
+	// open circuit voltage: first point at V>0 where the current drops to 0
+	L->Voc=0;
+	if (L->Isc>0)
+	{
+		double V0=0, I0=L->Isc, I1;
+		L->Voc=NAN;
+		for (i=0;i<L->N;i++)
+		{
+			if (L->P[i].x<=0)
+				continue;
+			I1=L->P[i].y;
+			if (I1<=0)
+			{
+				L->Voc=V0+(L->P[i].x-V0)*I0/(I0-I1);
+				break;
+			}
+			V0=L->P[i].x;
+			I0=I1;
+		}
+		if (isnan(L->Voc))
+		{
+			// extrapolate the last segment, if it decreases, otherwise the curve ends at its last point
+			double dI=L->P[L->N-1].y-L->P[L->N-2].y;
+			if ((dI<0)&&(L->P[L->N-1].x>0))
+				L->Voc=L->P[L->N-1].x-L->P[L->N-1].y*(L->P[L->N-1].x-L->P[L->N-2].x)/dI;
+			else
+				L->Voc=fmax(L->P[L->N-1].x, 0);
+		}
+	}
+	L->i=0;
+	return 0;
+}
+
+// exact integral of |d(V)| over an interval of width h for d linear from d0 to d1
+static double AbsLinInt(double d0, double d1, double h)
+{
+	if (d0*d1>=0)
+		return 0.5*h*(fabs(d0)+fabs(d1));
+	return 0.5*h*(d0*d0+d1*d1)/(fabs(d0)+fabs(d1));
+}
+
+/* integral of |R+ - C+| over [a,b] where the unclipped currents are linear
+ * from r0 to r1 and c0 to c1, and active (ra, ca nonzero) or zero over the
+ * whole interval */
+static double ClipLinInt(double a, double b, double r0, double r1, double c0, double c1, int ra, int ca)
+{
+	double s[4], A=0, x0, x1, fr0, fr1, fc0, fc1, t;
+	int n=0, k;
+	if (!ra)
+		r0=r1=0;
+	if (!ca)
+		c0=c1=0;
+	s[n++]=a;
+	// split at the zero crossings of the currents, where the clipping kinks
+	if (r0*r1<0)
+		s[n++]=a+(b-a)*r0/(r0-r1);
+	if (c0*c1<0)
+		s[n++]=a+(b-a)*c0/(c0-c1);
+	if ((n==3)&&(s[2]<s[1]))
+	{
+		t=s[1];
+		s[1]=s[2];
+		s[2]=t;
+	}
+	s[n++]=b;
+	for (k=0;k<n-1;k++)
+	{
+		x0=s[k];
+		x1=s[k+1];
+		if (!(x1>x0))
+			continue;
+		fr0=fmax(r0+(r1-r0)*(x0-a)/(b-a), 0);
+		fr1=fmax(r0+(r1-r0)*(x1-a)/(b-a), 0);
+		fc0=fmax(c0+(c1-c0)*(x0-a)/(b-a), 0);
+		fc1=fmax(c0+(c1-c0)*(x1-a)/(b-a), 0);
+		A+=AbsLinInt(fr0-fc0, fr1-fc1, x1-x0);
+	}
+	return A;
+}
+
+/* normalized area between the reference curve R and curve C (see above).
+ * Returns NaN if either curve has fewer than two points or the reference
+ * has no active range. */
+double CurveAreaDist(curve R, curve C)
+{
+	pline LR, LC;
+	double Vmax, a, b, ra, rb, ca, cb, A=0, nb;
+	int iR, iC;
+	if (InitPLine(R, &LR))
+		return NAN;
+	if (InitPLine(C, &LC))
+	{
+		free(LR.P);
+		return NAN;
+	}
+	if (!((LR.Isc>0)&&(LR.Voc>0)))
+	{
+		free(LR.P);
+		free(LC.P);
+		return NAN;
+	}
+	Vmax=fmax(LR.Voc, LC.Voc);
+	// walk over the merged break points: the points of both curves and both Voc's
+	iR=0;
+	iC=0;
+	while ((iR<LR.N)&&(LR.P[iR].x<=0))
+		iR++;
+	while ((iC<LC.N)&&(LC.P[iC].x<=0))
+		iC++;
+	a=0;
+	ra=PLineI(&LR, a);
+	ca=PLineI(&LC, a);
+	while (a<Vmax)
+	{
+		b=Vmax;
+		if ((iR<LR.N)&&(LR.P[iR].x<b))
+			b=LR.P[iR].x;
+		if ((iC<LC.N)&&(LC.P[iC].x<b))
+			b=LC.P[iC].x;
+		if ((LR.Voc>a)&&(LR.Voc<b))
+			b=LR.Voc;
+		if ((LC.Voc>a)&&(LC.Voc<b))
+			b=LC.Voc;
+		/* evaluate the segments on the left of b, so a break point at b
+		 * ends the segment it closes */
+		nb=0.5*(a+b);
+		PLineI(&LR, nb);
+		PLineI(&LC, nb);
+		rb=SegI(LR.P, LR.i, b);
+		cb=SegI(LC.P, LC.i, b);
+		ra=SegI(LR.P, LR.i, a);
+		ca=SegI(LC.P, LC.i, a);
+		A+=ClipLinInt(a, b, ra, rb, ca, cb, b<=LR.Voc, b<=LC.Voc);
+		while ((iR<LR.N)&&(LR.P[iR].x<=b))
+			iR++;
+		while ((iC<LC.N)&&(LC.P[iC].x<=b))
+			iC++;
+		a=b;
+	}
+	A/=LR.Voc*LR.Isc;
+	free(LR.P);
+	free(LC.P);
+	return A;
+}
+
+/* sample a model on a fixed, uniform grid of the parametric variable [0,1]
+ * (short to open circuit). A fixed grid keeps the sampled curve a smooth
+ * function of the model parameters. Non-finite points are dropped. */
+curve SampleModel(void * pars, point (*model)(double, point *, void *), int N)
+{
+	curve C;
+	point p;
+	int i;
+	C.N=0;
+	if ((N<2)||((C.P=Emalloc(N*sizeof(point)))==NULL))
+	{
+		C.P=NULL;
+		return C;
+	}
+	for (i=0;i<N;i++)
+	{
+		p=model((double)i/(double)(N-1), NULL, pars);
+		if (isfinite(p.x)&&isfinite(p.y))
+			C.P[C.N++]=p;
+	}
+	return C;
+}
+
+/* area distance of a curve to a curve model (the model is the reference).
+ * An empty curve has no error, as before. */
+double AreaErr(void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S)
+{
+	curve M;
+	double d;
+	(void)S;
+	if (C.N==0)
+		return 0.0;
+	M=SampleModel(pars, model, AREA_NSAMPLE);
+	d=CurveAreaDist(M, C);
+	free(M.P);
+	return d;
 }
 
 

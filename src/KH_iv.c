@@ -122,15 +122,23 @@ curve KHToCurve(generic_pars P, int N, MODELSET *S)
 	return ModelToCurve	((void *) &par, &KHIV_i, N, S);
 }
 
-double KHRMSErr_i(KHpars P, curve C, MODELSET *S)
+double KHAreaErr_i(KHpars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.Voc, P.Isc, (void *) &P, &KHIV_i, C,S);
+	return AreaErr((void *) &P, &KHIV_i, C,S);
 }
 
 // Exported Function
-double KHRMSErr(generic_pars P, curve C, MODELSET *S)
+double KHAreaErr(generic_pars P, curve C, MODELSET *S)
 {
-	return KHRMSErr_i(Generic2KHPars(P), C,S);
+	return KHAreaErr_i(Generic2KHPars(P), C,S);
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve KHSample(generic_pars P, int N, MODELSET *S)
+{
+	KHpars par=Generic2KHPars(P);
+	(void)S;
+	return SampleModel((void *) &par, &KHIV_i, N);
 }
 
 curve KHDistCurve_i(KHpars P, curve C, MODELSET *S)
@@ -470,7 +478,7 @@ generic_pars KHFit(curvepars par, curve C, double *Efit, MODELSET *S)
 	}
 	//P=KH_LevenbergMarquardtOptimizer(par, P);
 	//P=KHparsameterize(par, &e);
-	(*Efit)=KHRMSErr_i(P, C,S);
+	(*Efit)=KHAreaErr_i(P, C,S);
 	return KH2GenericPars(P);
 }
 

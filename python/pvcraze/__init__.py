@@ -25,7 +25,8 @@ Main objects:
 * :class:`ESP` -- extended solar cell parameters (single or batch)
 * :class:`Model`, :class:`FitSpec`, :func:`fit_model`, :class:`FitResult`
 * :class:`ModelParams` -- model parameters; evaluate with ``iv``, ``vi``,
-  ``curve``, ``esp``, ``rmse``
+  ``curve``, ``esp``, ``error``
+* :func:`curve_distance` -- area distance between two IV curves or models
 * :class:`Flag` -- analysis warnings and errors
 * :mod:`pvcraze.iec60891`, :mod:`pvcraze.diode_gt` -- irradiance/temperature
   translation (degrees Celsius, W/m2)
@@ -40,7 +41,7 @@ from . import _core
 from ._analysis import AnalysisResult, FitResult, analyze, fit_model
 from ._esp import ESP
 from ._flags import ERROR_MASK, WARNING_MASK, Flag, describe as describe_flags
-from ._models import FitSpec, Model, ModelParams
+from ._models import FitSpec, Model, ModelParams, curve_distance
 from ._verbosity import get_verbosity, set_verbosity, verbose
 from . import diode_gt, iec60891
 
@@ -60,6 +61,7 @@ __all__ = [
     "ModelParams",
     "WARNING_MASK",
     "analyze",
+    "curve_distance",
     "describe_flags",
     "diode_gt",
     "fit_model",

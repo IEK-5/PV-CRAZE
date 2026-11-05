@@ -722,7 +722,7 @@ static PyObject *core_model_esp(PyObject *self, PyObject *args)
 	return ret;
 }
 
-static PyObject *core_rmse(PyObject *self, PyObject *args)
+static PyObject *core_error(PyObject *self, PyObject *args)
 {
 	PyObject *types_obj, *pars_obj, *curves_obj;
 	PyArrayObject *out;
@@ -765,6 +765,85 @@ static PyObject *core_rmse(PyObject *self, PyObject *args)
 	free(g);
 	free_curves(C, nc);
 	return (PyObject *)out;
+}
+
+/* wrap a malloc'ed array of n doubles in a new (n,) array, freeing it */
+static PyObject *doubles_to_array(double *d, int n)
+{
+	PyArrayObject *out;
+	npy_intp dims[1]={n};
+	if (d==NULL && n>0)
+		return PyErr_NoMemory();
+	if ((out=(PyArrayObject *)PyArray_SimpleNew(1, dims, NPY_DOUBLE))!=NULL && n>0)
+		memcpy(PyArray_DATA(out), d, n*sizeof(double));
+	free(d);
+	return (PyObject *)out;
+}
+
+static PyObject *core_curve_distance(PyObject *self, PyObject *args)
+{
+	PyObject *ref_obj, *curves_obj;
+	curve *R, *C;
+	double *E=NULL;
+	int nr=0, nc=0;
+
+	if (!PyArg_ParseTuple(args, "OO", &ref_obj, &curves_obj))
+		return NULL;
+	if ((R=curves_from_obj(ref_obj, &nr))==NULL)
+		return NULL;
+	if ((C=curves_from_obj(curves_obj, &nc))==NULL)
+	{
+		free_curves(R, nr);
+		return NULL;
+	}
+	if (nc!=nr)
+	{
+		PyErr_Format(PyExc_ValueError, "got %d reference curves but %d curves", nr, nc);
+		free_curves(R, nr);
+		free_curves(C, nc);
+		return NULL;
+	}
+	if (nr>0)
+	{
+		E=pv_craze_curvedist(R, C, nr);
+		FLUSH_LIBRARY_OUTPUT();
+	}
+	free_curves(R, nr);
+	free_curves(C, nc);
+	return doubles_to_array(E, nr);
+}
+
+static PyObject *core_model_distance(PyObject *self, PyObject *args)
+{
+	PyObject *rtypes_obj, *rpars_obj, *types_obj, *pars_obj;
+	generic_pars *R, *P;
+	double *E=NULL;
+	int nr, np;
+
+	if (!PyArg_ParseTuple(args, "OOOO", &rtypes_obj, &rpars_obj, &types_obj, &pars_obj))
+		return NULL;
+	if ((R=generic_from_obj(rtypes_obj, rpars_obj, &nr))==NULL)
+		return NULL;
+	if ((P=generic_from_obj(types_obj, pars_obj, &np))==NULL)
+	{
+		free(R);
+		return NULL;
+	}
+	if (np!=nr)
+	{
+		PyErr_Format(PyExc_ValueError, "got %d reference parameter sets but %d parameter sets", nr, np);
+		free(R);
+		free(P);
+		return NULL;
+	}
+	if (nr>0)
+	{
+		E=pv_craze_modeldist(R, P, nr);
+		FLUSH_LIBRARY_OUTPUT();
+	}
+	free(R);
+	free(P);
+	return doubles_to_array(E, nr);
 }
 
 static PyObject *core_distance_curves(PyObject *self, PyObject *args)
@@ -1185,7 +1264,9 @@ static PyMethodDef core_methods[]={
 	{"fit", core_fit, METH_VARARGS, "fit(esp, models) -> (types, pars, err)"},
 	{"curves", core_curves, METH_VARARGS, "curves(types, pars, npoints) -> list of (n, 2) arrays"},
 	{"model_esp", core_model_esp, METH_VARARGS, "model_esp(types, pars) -> esp"},
-	{"rmse", core_rmse, METH_VARARGS, "rmse(types, pars, curves) -> (N,) array"},
+	{"error", core_error, METH_VARARGS, "error(types, pars, curves) -> (N,) array, area distance of the curves to the models"},
+	{"curve_distance", core_curve_distance, METH_VARARGS, "curve_distance(ref_curves, curves) -> (N,) array, area distance"},
+	{"model_distance", core_model_distance, METH_VARARGS, "model_distance(ref_types, ref_pars, types, pars) -> (N,) array, area distance"},
 	{"distance_curves", core_distance_curves, METH_VARARGS, "distance_curves(types, pars, curves) -> list of (n, 2) arrays"},
 	{"iv", core_iv, METH_VARARGS, "iv(types, pars, V) -> I, V of shape (N, m)"},
 	{"vi", core_vi, METH_VARARGS, "vi(types, pars, I) -> V, I of shape (N, m)"},

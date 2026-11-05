@@ -237,19 +237,27 @@ curve B3ToCurve(generic_pars P, int N, MODELSET *S)
 	return C;
 }
 
-double B3RMSErr_i(B3pars P, curve C, MODELSET *S)
+double B3AreaErr_i(B3pars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.V[12], P.I[0], (void *) &P, &B3_i, C,S);
+	return AreaErr((void *) &P, &B3_i, C,S);
 }
 
 // Exported Function
-double B3RMSErr(generic_pars P, curve C, MODELSET *S)
+double B3AreaErr(generic_pars P, curve C, MODELSET *S)
 {
 	B3pars par;
 	double E;
 	par=Generic2B3Pars(P,S);
-	E=B3RMSErr_i(par, C,S);
+	E=B3AreaErr_i(par, C,S);
 	return E;
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve B3Sample(generic_pars P, int N, MODELSET *S)
+{
+	B3pars par=Generic2B3Pars(P,S);
+	(void)S;
+	return SampleModel((void *) &par, &B3_i, N);
 }
 
 curve B3DistCurve_i(B3pars P, curve C, MODELSET *S)
@@ -775,7 +783,7 @@ generic_pars B3Fit(curvepars par, curve C, double *Efit, MODELSET *S)
 	P.pars[9]=par.Roc;
 	
 	Sd=Generic2B3Pars(P,S);
-	(*Efit)=B3RMSErr_i(Sd, C,S);
+	(*Efit)=B3AreaErr_i(Sd, C,S);
 	return P;
 }
 

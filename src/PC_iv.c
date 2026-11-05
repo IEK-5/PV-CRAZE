@@ -121,15 +121,23 @@ curve PCToCurve(generic_pars P, int N, MODELSET *S)
 	return ModelToCurve	((void *) &par, &PCIV_i, N, S);
 }
 
-double PCRMSErr_i(PCpars P, curve C, MODELSET *S)
+double PCAreaErr_i(PCpars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.Voc, P.Isc, (void *) &P, &PCIV_i, C, S);
+	return AreaErr((void *) &P, &PCIV_i, C, S);
 }
 
 // Exported Function
-double PCRMSErr(generic_pars P, curve C, MODELSET *S)
+double PCAreaErr(generic_pars P, curve C, MODELSET *S)
 {
-	return PCRMSErr_i(Generic2PCPars(P), C, S);
+	return PCAreaErr_i(Generic2PCPars(P), C, S);
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve PCSample(generic_pars P, int N, MODELSET *S)
+{
+	PCpars par=Generic2PCPars(P);
+	(void)S;
+	return SampleModel((void *) &par, &PCIV_i, N);
 }
 
 curve PCDistCurve_i(PCpars P, curve C, MODELSET *S)
@@ -176,7 +184,7 @@ generic_pars PCFit(curvepars par, curve C, double *Efit, MODELSET *S)
 	P.Impp=par.Impp;
 	P.eta=log(par.Vmpp*par.Impp-par.Vqmp2*par.Iqmp2)-log(par.Vmpp*par.Impp);
 	P.eta/=(log(par.Vqmp2-par.Vmpp)-log(par.Voc-par.Vmpp));
-	(*Efit)=PCRMSErr_i(P, C,S);
+	(*Efit)=PCAreaErr_i(P, C,S);
 	return PC2GenericPars(P);
 }
 

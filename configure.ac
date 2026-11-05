@@ -5,7 +5,7 @@ AC_INIT([libpvcraze], [pvcraze_version])
 # libtool interface version (current:revision:age), passed to -version-info.
 # Incompatible API/ABI change: current+1, revision=0, age=0.
 # Compatible additions: current+1, revision=0, age+1. Bug fixes only: revision+1.
-m4_define([pvcraze_lt_current],  [2])
+m4_define([pvcraze_lt_current],  [3])
 m4_define([pvcraze_lt_revision], [0])
 m4_define([pvcraze_lt_age],      [0])
 version_info="pvcraze_lt_current:pvcraze_lt_revision:pvcraze_lt_age"

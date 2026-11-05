@@ -62,6 +62,8 @@ typedef enum {IFILTER,SFILTER, MPPMETHOD, MPPDV, MPPDI, SCDV, OCDI, MODEL, RESAM
 // PKG_ADD: autoload("pvcraze_modelpars","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_modelerror","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_errorcurve","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_curvedistance","pv_craze.oct");
+// PKG_ADD: autoload("pvcraze_modeldistance","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_iv","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_vi","pv_craze.oct");
 // PKG_ADD: autoload("pvcraze_fit_IEC60891_v2","pv_craze.oct");
@@ -884,8 +886,9 @@ Output:\n\
 
 DEFUN_DLD (pvcraze_modelerror, args, nargout, "-*- texinfo -*-\n\
 @deftypefn {} {[@var{err}] =} pvcraze_modelerror (@var{modelpar}, @var{IV})\n\
-pvcraze_modelerror is part of the PV-CRAZE package and computes a RMS distance IV curve and a model given and IV's\n\
-PV-CRAZE generic parameters\n\n\
+pvcraze_modelerror is part of the PV-CRAZE package and computes the area distance between IV curves and models: \
+the area between the IV curve and the model within the active range (V>=0, I>=0), normalized by Voc*Isc of the model \
+(see pvcraze_curvedistance)\n\n\
 Input:\n\
 @itemize \n\
 @item @var{modelpar}: Cell array with model parameters. Each cell must contain a 1x10 or 1x11 sized array. If an array is 1x11, it is treated as generic model parameters. If an 1x10 array is passed the PV-Bezier model is used.\n\
@@ -893,7 +896,7 @@ Input:\n\
 @end itemize\n\
 Output:\n\
 @itemize \n\
-@item @var{err}: Array with RMS distances for each IV an model parameter set\n\
+@item @var{err}: Array with area distances for each IV an model parameter set\n\
 @end itemize\n\
 @end deftypefn")
 {
@@ -964,7 +967,7 @@ Output:\n\
 				C[i].P[j].y=iv(j,1);
 			}
 		}
-		PP=Pars(i/Nc,i%Nc).matrix_value();
+		PP=Pars(i%Nr,i/Nr).matrix_value();
 		if (PP.rows()!=1)
 			P[i]=NULPAR;
 		else if(PP.cols()==11)
@@ -1021,6 +1024,201 @@ Output:\n\
 	
 }
 
+
+/* an IV curve (n x 2 matrix) from a cell element, an empty curve for anything else */
+static curve CellToCurve(const octave_value &v)
+{
+	curve C={NULL, 0};
+	Matrix iv;
+	int j;
+	iv=v.matrix_value();
+	if ((iv.cols()!=2)||(iv.rows()==0))
+		return C;
+	if ((C.P=(point*) malloc((int)iv.rows()*sizeof(point)))==NULL)
+		return C;
+	C.N=iv.rows();
+	for(j=0;j<C.N;j++)
+	{
+		C.P[j].x=iv(j,0);
+		C.P[j].y=iv(j,1);
+	}
+	return C;
+}
+
+/* model parameters from a cell element: 1x11 generic parameters or 1x10 PV-Bezier ESP */
+static generic_pars CellToPars(const octave_value &v)
+{
+	generic_pars P={{0,0,0,0,0,0,0,0,0,0}, M_NONE};
+	Matrix PP;
+	int k;
+	PP=v.matrix_value();
+	if (PP.rows()!=1)
+		return P;
+	if (PP.cols()==11)
+	{
+		P.TYPE=(MODEL_TYPE)PP(0);
+		for (k=0;k<10;k++)
+			P.pars[k]=PP(k+1);
+	}
+	else if (PP.cols()==10)
+	{
+		P.TYPE=M_PVBEZIER;
+		for (k=0;k<10;k++)
+			P.pars[k]=PP(k);
+	}
+	return P;
+}
+
+/* a Nr x Nc matrix from a list of Nr*Nc values (column major), frees the list */
+static octave_value DistToMatrix(double *DD, int Nr, int Nc)
+{
+	Matrix D(Nr, Nc);
+	int i;
+	for (i=0;i<Nr*Nc;i++)
+		D(i%Nr,i/Nr)=DD[i];
+	pv_craze_free(DD);
+	return octave_value(D);
+}
+
+DEFUN_DLD (pvcraze_curvedistance, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{dist}] =} pvcraze_curvedistance (@var{IVref}, @var{IV})\n\
+pvcraze_curvedistance is part of the PV-CRAZE package and computes the area distance between reference IV curves \
+and IV curves: the area between the curves within the active range (V>=0, I>=0), normalized by Voc*Isc of the \
+reference curve. A sampled curve is the piecewise linear current I(V) through its points, the end segments are \
+extended linearly. As an area the distance hardly depends on how densely the curves are sampled.\n\n\
+Input:\n\
+@itemize \n\
+@item @var{IVref}: Cell array with reference IV curves, each a n x 2 matrix with columns V and I\n\
+@item @var{IV}: Cell array (of the same size) with the IV curves to compare with the reference\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{dist}: Array with the area distances (NaN for a curve with less than two points or a reference without active range)\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	Cell IVr, IV;
+	int Nr, Nc, i;
+	double *DD;
+	curve *R, *C;
+  	if (nargin != 2)
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	IVr=args(0).cell_value();
+	IV=args(1).cell_value();
+	Nr=IVr.rows();
+	Nc=IVr.cols();
+	if ((Nr!=IV.rows())||(Nc!=IV.cols()))
+	{
+		fprintf(stderr, "Size of the reference IV cell array must be identical to the IV cell array\n");
+		return octave_value_list ();
+	}
+	if ((Nc==0)||(Nr==0))
+	{
+		retval(0)=Matrix(Nr,Nc);
+		return retval;
+	}
+	R=(curve *)malloc(Nc*Nr*sizeof(curve));
+	C=(curve *)malloc(Nc*Nr*sizeof(curve));
+	if (!R || !C)
+	{
+		free(R);
+		free(C);
+		fprintf(stderr, "Could not allocate curve list\n");
+		return octave_value_list ();
+	}
+	for (i=0;i<Nc*Nr;i++)
+	{
+		R[i]=CellToCurve(IVr(i%Nr,i/Nr));
+		C[i]=CellToCurve(IV(i%Nr,i/Nr));
+	}
+	DD=pv_craze_curvedist(R, C, Nc*Nr);
+	for (i=0;i<Nc*Nr;i++)
+	{
+		free(R[i].P);
+		free(C[i].P);
+	}
+	free(R);
+	free(C);
+	if (!DD)
+	{
+		fprintf(stderr, "PV-CRAZE returned a NULL list\n");
+		return octave_value_list ();
+	}
+	retval(0)=DistToMatrix(DD, Nr, Nc);
+	return retval;
+}
+
+DEFUN_DLD (pvcraze_modeldistance, args, nargout, "-*- texinfo -*-\n\
+@deftypefn {} {[@var{dist}] =} pvcraze_modeldistance (@var{modelparref}, @var{modelpar})\n\
+pvcraze_modeldistance is part of the PV-CRAZE package and computes the area distance between the curves of \
+reference models and models: the area between the curves within the active range (V>=0, I>=0), normalized by \
+Voc*Isc of the reference model (see pvcraze_curvedistance).\n\n\
+Input:\n\
+@itemize \n\
+@item @var{modelparref}: Cell array with reference model parameters. Each cell must contain a 1x10 or 1x11 sized array. If an array is 1x11, it is treated as generic model parameters. If an 1x10 array is passed the PV-Bezier model is used.\n\
+@item @var{modelpar}: Cell array (of the same size) with the model parameters to compare with the reference\n\
+@end itemize\n\
+Output:\n\
+@itemize \n\
+@item @var{dist}: Array with the area distances\n\
+@end itemize\n\
+@end deftypefn")
+{
+  	int nargin = args.length ();
+	octave_value_list retval;
+	Cell Pr, Pc;
+	int Nr, Nc, i;
+	double *DD;
+	generic_pars *R, *P;
+  	if (nargin != 2)
+	{
+    	print_usage ();
+		return octave_value_list ();
+	}
+	Pr=args(0).cell_value();
+	Pc=args(1).cell_value();
+	Nr=Pr.rows();
+	Nc=Pr.cols();
+	if ((Nr!=Pc.rows())||(Nc!=Pc.cols()))
+	{
+		fprintf(stderr, "Size of the reference modelpar cell array must be identical to the modelpar cell array\n");
+		return octave_value_list ();
+	}
+	if ((Nc==0)||(Nr==0))
+	{
+		retval(0)=Matrix(Nr,Nc);
+		return retval;
+	}
+	R=(generic_pars *)malloc(Nc*Nr*sizeof(generic_pars));
+	P=(generic_pars *)malloc(Nc*Nr*sizeof(generic_pars));
+	if (!R || !P)
+	{
+		free(R);
+		free(P);
+		fprintf(stderr, "Could not allocate parameters list\n");
+		return octave_value_list ();
+	}
+	for (i=0;i<Nc*Nr;i++)
+	{
+		R[i]=CellToPars(Pr(i%Nr,i/Nr));
+		P[i]=CellToPars(Pc(i%Nr,i/Nr));
+	}
+	DD=pv_craze_modeldist(R, P, Nc*Nr);
+	free(R);
+	free(P);
+	if (!DD)
+	{
+		fprintf(stderr, "PV-CRAZE returned a NULL list\n");
+		return octave_value_list ();
+	}
+	retval(0)=DistToMatrix(DD, Nr, Nc);
+	return retval;
+}
 
 DEFUN_DLD (pvcraze_errorcurve, args, nargout, "-*- texinfo -*-\n\
 @deftypefn {} {[@var{errcurve}] =} pvcraze_errorcurve (@var{modelpar}, @var{IV})\n\

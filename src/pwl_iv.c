@@ -208,9 +208,17 @@ curve PWLToCurve(generic_pars P, int N, MODELSET *S)
 }
 
 // Exported Function
-double PWLRMSErr(generic_pars P, curve C, MODELSET *S)
+double PWLAreaErr(generic_pars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.pars[0], P.pars[1], (void *) &P, &PWL_i, C,S);
+	return AreaErr((void *) &P, &PWL_i, C,S);
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve PWLSample(generic_pars P, int N, MODELSET *S)
+{
+	generic_pars par=P;
+	(void)S;
+	return SampleModel((void *) &par, &PWL_i, N);
 }
 
 // Exported Function
@@ -248,6 +256,6 @@ generic_pars PWLFit(curvepars par, curve C, double *Efit, MODELSET *S)
 	P.pars[9]=par.Roc;
 	
 	
-	(*Efit)=PWLRMSErr(P, C,S);
+	(*Efit)=PWLAreaErr(P, C,S);
 	return P;
 }

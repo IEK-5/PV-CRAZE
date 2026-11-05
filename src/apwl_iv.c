@@ -267,38 +267,62 @@ curve SPWLToCurve(generic_pars P, int N, MODELSET *S)
 	}
 	return C;
 }
-double APWLRMSErr_i(apwlpars P, curve C, MODELSET *S)
+double APWLAreaErr_i(apwlpars P, curve C, MODELSET *S)
 {
-	return RMSErr(P.V[12], P.I[0], (void *) &P, &APWL_i, C,S);
+	return AreaErr((void *) &P, &APWL_i, C,S);
 }
 // Exported Function
-double APWLRMSErr(generic_pars P, curve C, MODELSET *S)
+double APWLAreaErr(generic_pars P, curve C, MODELSET *S)
 {
 	apwlpars par;
 	double E;
 	par=Generic2APWLPars(P,S);
-	E=APWLRMSErr_i(par, C,S);
+	E=APWLAreaErr_i(par, C,S);
 	return E;
 }
 
-double SPWLRMSErr_i(spwlpars P, curve C, MODELSET *S)
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve APWLSample(generic_pars P, int N, MODELSET *S)
+{
+	apwlpars par=Generic2APWLPars(P,S);
+	(void)S;
+	return SampleModel((void *) &par, &APWL_i, N);
+}
+
+double SPWLAreaErr_i(spwlpars P, curve C, MODELSET *S)
 {
 	if ((P.V!=NULL)&&(P.I!=NULL))
-		return RMSErr(P.V[P.N-1], P.I[0], (void *) &P, &SPWL_i, C,S);
+		return AreaErr((void *) &P, &SPWL_i, C,S);
 	else
 		return NAN;
 }
 // Exported Function
-double SPWLRMSErr(generic_pars P, curve C, MODELSET *S)
+double SPWLAreaErr(generic_pars P, curve C, MODELSET *S)
 {
 	apwlpars par;
 	spwlpars spar;
 	double E;
 	par=Generic2APWLPars(P,S);
 	spar=InitSmooth(par);
-	E=SPWLRMSErr_i(spar, C,S);
+	E=SPWLAreaErr_i(spar, C,S);
 	FreeSmooth(&spar);
 	return E;
+}
+
+// Exported Function: the model sampled on a fixed grid of its parametric variable
+curve SPWLSample(generic_pars P, int N, MODELSET *S)
+{
+	apwlpars par;
+	spwlpars spar;
+	curve C={0};
+	par=Generic2APWLPars(P,S);
+	spar=InitSmooth(par);
+	if (spar.N!=0)
+	{
+		C=SampleModel((void *) &spar, &SPWL_i, N);
+		FreeSmooth(&spar);
+	}
+	return C;
 }
 
 curve APWLDistCurve_i(apwlpars P, curve C, MODELSET *S)
@@ -390,7 +414,7 @@ generic_pars APWLFit(curvepars par, curve C, double *Efit, MODELSET *S)
 	
 	
 	Sd=Generic2APWLPars(P,S);
-	(*Efit)=APWLRMSErr_i(Sd, C,S);
+	(*Efit)=APWLAreaErr_i(Sd, C,S);
 	return P;
 }
 
@@ -416,7 +440,7 @@ generic_pars SPWLFit(curvepars par, curve C, double *Efit, MODELSET *S)
 	
 	Sd=Generic2APWLPars(P,S);
 	spar=InitSmooth(Sd);
-	(*Efit)=SPWLRMSErr_i(spar, C,S);
+	(*Efit)=SPWLAreaErr_i(spar, C,S);
 	FreeSmooth(&spar);
 	return P;
 }

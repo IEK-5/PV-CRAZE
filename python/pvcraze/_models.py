@@ -431,16 +431,18 @@ class ModelParams:
             raise ValueError(f"got {len(lst)} curves for {len(self)} parameter sets")
         return lst
 
-    def rmse(self, curves: Any, I: Any = None) -> Any:
-        """RMS distance between measured curve(s) and the model.
+    def error(self, curves: Any, I: Any = None) -> Any:
+        """Area distance between measured curve(s) and the model.
 
-        Distances are Euclidean in the (V/Voc, I/Isc) plane, so the result is
-        dimensionless. Every point of the given curve counts, including points
-        outside the first quadrant. Takes a curve in the same forms as
-        :func:`pvcraze.analyze` (one per parameter set for a batch).
+        The area between the curve and the model within the active range
+        (V >= 0, I >= 0), divided by Voc*Isc of the model, so the result is
+        dimensionless. Unlike a point-wise distance it hardly depends on how
+        densely the curve is sampled. Takes a curve in the same forms as
+        :func:`pvcraze.analyze` (one per parameter set for a batch). See
+        :func:`pvcraze.curve_distance` for the definition.
         """
         lst = self._curves_for(curves, I)
-        e = _core.rmse(*self._core_args(), lst)
+        e = _core.error(*self._core_args(), lst)
         return e if self.is_batch else float(e[0])
 
     def distance(self, curves: Any, I: Any = None) -> Any:
@@ -448,7 +450,8 @@ class ModelParams:
 
         For every measured point this is the Euclidean distance to the closest
         point of the modelled curve (between short and open circuit) in the
-        (V/Voc, I/Isc) plane. Returns an ``(n, 2)`` array with columns
+        (V/Voc, I/Isc) plane. This is a diagnostic; :meth:`error` gives the
+        overall distance. Returns an ``(n, 2)`` array with columns
         (V, distance) per curve, a list of those for a batch.
         """
         lst = self._curves_for(curves, I)
@@ -456,6 +459,80 @@ class ModelParams:
         for d in out:
             np.sqrt(d[:, 1], out=d[:, 1])  # the library returns squared distances
         return out if self.is_batch else out[0]
+
+
+def curve_distance(ref: Any, other: Any) -> Any:
+    """Area distance between a reference IV curve and a second curve.
+
+    The distance is the area between the two curves within the active range
+    (V >= 0, I >= 0), divided by Voc*Isc of the reference::
+
+        D = 1/(Voc_ref Isc_ref) * integral |I_ref+(V) - I+(V)| dV
+
+    where ``I+`` is the current clipped at zero between V = 0 and the curve's
+    open circuit voltage, and zero beyond. A sampled curve is the piecewise
+    linear I(V) through its points; the end segments are extended linearly so
+    that a curve which stops short of V = 0 or Voc still covers the active
+    range. A model curve is sampled densely on a fixed grid. As an area the
+    result hardly depends on how the curves are sampled, unlike a point-wise
+    RMS distance. It is 0 for identical curves and 1 when ``other`` has no
+    active range while the reference fills the rectangle Voc*Isc.
+
+    Parameters
+    ----------
+    ref, other:
+        Each either curve(s) in the forms :func:`pvcraze.analyze` accepts
+        (an ``(n, 2)`` array with columns (V, I), or a sequence of them), or
+        :class:`ModelParams`. A batch is compared element-wise with a batch of
+        the same length; a single reference or curve is compared with every
+        element of a batch.
+
+    Returns
+    -------
+    float for two single curves, otherwise an array with one distance per
+    pair. NaN where a curve has fewer than two points or the reference has no
+    active range.
+    """
+
+    def norm(x: Any, name: str) -> Tuple[Any, int, bool]:
+        if isinstance(x, ModelParams):
+            return x, (len(x) if x.is_batch else 1), not x.is_batch
+        try:
+            lst, single = normalize_curves(x)
+        except (TypeError, ValueError) as e:
+            raise type(e)(f"{name}: {e}") from None
+        return lst, len(lst), single
+
+    r, nr, rs = norm(ref, "ref")
+    o, no, os_ = norm(other, "other")
+    if not rs and not os_ and nr != no:
+        raise ValueError(f"got {nr} reference curves but {no} curves")
+    n = max(nr, no) if (rs or os_) else nr
+
+    def rep(x: Any, single: bool) -> Any:
+        if isinstance(x, ModelParams):
+            if single and n != 1:
+                return ModelParams._wrap(x.model, np.broadcast_to(x._data, (n, x._data.shape[-1])))
+            return x if x.is_batch else ModelParams._wrap(x.model, x._data[None, :])
+        return x * n if (single and n != 1) else x
+
+    r, o = rep(r, rs), rep(o, os_)
+    if n == 0:
+        d = np.empty(0)
+    elif isinstance(r, ModelParams) and isinstance(o, ModelParams):
+        d = _core.model_distance(*r._core_args(), *o._core_args())
+    elif isinstance(r, ModelParams):
+        d = _core.error(*r._core_args(), o)
+    elif isinstance(o, ModelParams):
+        # the model is not the reference: compare its densely sampled curve
+        d = _core.curve_distance(r, _core.curves(*o._core_args(), _MODEL_SAMPLES))
+    else:
+        d = _core.curve_distance(r, o)
+    return float(d[0]) if (rs and os_) else d
+
+
+# points of a model curve compared with a measured reference curve
+_MODEL_SAMPLES = 1000
 
 
 def _params_from_core(types: np.ndarray, pars: np.ndarray, single: bool) -> ModelParams:

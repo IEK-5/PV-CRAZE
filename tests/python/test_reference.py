@@ -73,11 +73,11 @@ def test_fit_model_reference(gt_data, name):
 
 
 @pytest.mark.parametrize("name", list(MODELS))
-def test_model_rmse_against_bezier_curves(gt_data, name):
+def test_model_error_against_bezier_curves(gt_data, name):
     _, _, esp = gt_data
     curves = pc.fit_model(esp, "PV-Bezier").params.curve(100)
     fit = pc.fit_model(esp, MODELS[name])
-    assert_below(fit.params.rmse(curves), TH)
+    assert_below(fit.params.error(curves), TH)
 
 
 def _dist(esp1, esp2):

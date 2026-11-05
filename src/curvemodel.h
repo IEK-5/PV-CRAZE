@@ -27,7 +27,11 @@
 
 curve 		ModelToCurve	(void * pars, point (*model)(double, point *, void *), int N, MODELSET *S);
 curve 		DistCurve		(double Voc, double Isc, void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S);
-double 		RMSErr			(double Voc, double Isc, void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S);
+/* number of points on which a model is sampled for the area distance */
+#define AREA_NSAMPLE 1024
+double 		AreaErr			(void * pars, point (*model)(double, point *, void *), curve C, MODELSET *S);
+curve 		SampleModel		(void * pars, point (*model)(double, point *, void *), int N);
+double 		CurveAreaDist	(curve R, curve C);
 double 		Solve_IV		(double V, double Voc, point *dp, void * pars, point (*model)(double, point *, void *), MODELSET *S);
 double 		Solve_VI		(double I, double Isc,  point *dp, void * pars, point (*model)(double, point *, void *), MODELSET *S);
 int 		RootIllinois	(double a, double fa, double b, double fb, int (*f)(double, void *, double *), void *ctx, double *root);

@@ -758,7 +758,8 @@ CurveProp * pv_craze_modelfit(curvepars *par, int N, ProcessSettings *S)
 }
 
 /* Compute an error 
- * computes the RMS euclidean distance of the curve points to the model
+ * computes the area between the curve and the model within the active
+ * range (V>=0, I>=0), normalized by Voc*Isc of the model
  */
 double *pv_craze_error(generic_pars *pars, curve *C, int N)
 {
@@ -774,7 +775,57 @@ double *pv_craze_error(generic_pars *pars, curve *C, int N)
 	}
 	for (i=0;i<N;i++)
 	{
-		d[i]=pv_craze_g_rmse(pars[i], C[i]);
+		d[i]=pv_craze_g_error(pars[i], C[i]);
+		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
+	}
+	ProgressBar(100, pc, LLEN, TICS);
+	return d;
+}
+
+/* Area distance between reference curves R and curves C
+ * the area between each pair of curves within the active range (V>=0,
+ * I>=0), normalized by Voc*Isc of the reference curve
+ */
+double *pv_craze_curvedist(curve *R, curve *C, int N)
+{
+	int i, pc=0;
+	double *d;
+	if (pvcraze_verbose&VERB_HEAD)
+		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - Curve Distance");
+	BarScale(LLEN, TICS);
+	if((d=Emalloc(N*sizeof(double)))==NULL)
+	{
+		fprintf(stderr,"INFO: Memory allocation failure in curve distance, no distances can be computed\n");
+		return d;
+	}
+	for (i=0;i<N;i++)
+	{
+		d[i]=pv_craze_g_curvedist(R[i], C[i]);
+		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
+	}
+	ProgressBar(100, pc, LLEN, TICS);
+	return d;
+}
+
+/* Area distance between reference models R and models P
+ * the area between each pair of model curves within the active range
+ * (V>=0, I>=0), normalized by Voc*Isc of the reference model
+ */
+double *pv_craze_modeldist(generic_pars *R, generic_pars *P, int N)
+{
+	int i, pc=0;
+	double *d;
+	if (pvcraze_verbose&VERB_HEAD)
+		pvcraze_PrintHead(N, "Photo-Voltaic CuRve AnalyZEr (PV-CRAZE) - Model Distance");
+	BarScale(LLEN, TICS);
+	if((d=Emalloc(N*sizeof(double)))==NULL)
+	{
+		fprintf(stderr,"INFO: Memory allocation failure in model distance, no distances can be computed\n");
+		return d;
+	}
+	for (i=0;i<N;i++)
+	{
+		d[i]=pv_craze_g_modeldist(R[i], P[i]);
 		pc=ProgressBar((100*i)/N, pc, LLEN, TICS);
 	}
 	ProgressBar(100, pc, LLEN, TICS);

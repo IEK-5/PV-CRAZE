@@ -166,11 +166,14 @@ def test_model_params_named_and_evaluation():
     c = p.curve(50)
     assert c.ndim == 2 and c.shape[1] == 2
     assert p.esp().voc == pytest.approx(p.vi(0.0), rel=1e-6)
-    assert p.rmse(c) < 1e-6
+    # a densely sampled model curve has (almost) no area to the model
+    assert p.error(p.curve(1000)) < 2e-5
     measured = c + [0.0, 1e-4]
     d = p.distance(measured)
     assert d.shape == c.shape and np.all(d[:, 1] >= 0)
-    assert np.sqrt(np.mean(d[:, 1] ** 2)) == pytest.approx(p.rmse(measured), rel=1e-6)
+    # a constant current offset dI gives an area of about dI*Voc, i.e. dI/Isc
+    dense = p.curve(1000)
+    assert p.error(dense + [0.0, 1e-4]) == pytest.approx(1e-4 / p.esp().isc, rel=0.05)
     with pytest.raises(AttributeError, match="available"):
         p.voc
     with pytest.raises(TypeError, match="missing"):
@@ -189,9 +192,9 @@ def test_model_params_batch_broadcasting():
         p.iv(np.zeros((3, 4)))
     curves = p.curve(30)
     assert isinstance(curves, list) and len(curves) == 2
-    assert p.rmse(curves).shape == (2,)
+    assert p.error(curves).shape == (2,)
     with pytest.raises(ValueError):
-        p.rmse(curves[0])
+        p.error(curves[0])
 
 
 def test_fit_model_single_and_batch(gt_data):
